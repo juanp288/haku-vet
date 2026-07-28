@@ -5,10 +5,8 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**"]
     },
-    "@vetclinic/db#build": {
-      "outputs": []
-    },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },

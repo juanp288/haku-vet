@@ -1,13 +1,12 @@
 import { initContract } from "@ts-rest/core";
+import { authContract } from "./auth";
 
 export * from "./common/errors";
 export * from "./common/roles";
+export * from "./auth";
 
-/**
- * Punto de entrada de ts-rest. Cada historia agrega su contrato de dominio
- * aquí (ej. `c.router({ auth: authContract, patients: patientsContract })`).
- * Vacío hasta que se implemente la primera historia (A1).
- */
 const c = initContract();
 
-export const apiContract = c.router({});
+export const apiContract = c.router({
+  auth: authContract,
+});

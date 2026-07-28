@@ -64,6 +64,33 @@
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+
+  /*
+   * Capa semántica de shadcn/ui, mapeada a los tokens de marca de arriba.
+   * Son valores CSS completos (hex / color-mix), no tripletes HSL, así que
+   * el preset de Tailwind los usa como `var(--x)` directo, sin envolver en
+   * hsl(). Radius/spacing reutilizan los tokens del mockup.
+   */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-bg);
+  --secondary: var(--color-neutral-200);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-neutral-200);
+  --muted-foreground: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --accent: var(--color-neutral-200);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-accent-2);
+  --destructive-foreground: var(--color-bg);
+  --border: var(--color-divider);
+  --input: var(--color-divider);
+  --ring: var(--color-accent);
+  --radius: var(--radius-md);
 }
 
 body {

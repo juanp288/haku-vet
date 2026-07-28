@@ -3,7 +3,8 @@
   "compilerOptions": {
     "module": "CommonJS",
     "moduleResolution": "Node",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "ignoreDeprecations": "5.0"
   },
   "include": ["src", "prisma"]
 }
