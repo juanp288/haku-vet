@@ -11,7 +11,7 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "VetClínica",
+  title: "Haku Veterinaria",
   description: "Sistema de gestión para clínica veterinaria",
 };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Vista semanal — VetClínica",
+  title: "Vista semanal — Haku Veterinaria",
 };
 
 export default function SemanaPage() {

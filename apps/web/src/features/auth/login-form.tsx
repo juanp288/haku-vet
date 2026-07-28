@@ -38,7 +38,7 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-start px-[12vw] py-8">
       <div className="w-full max-w-[380px]">
         <div className="mb-3 font-heading text-[13px] uppercase tracking-[0.14em] text-brand-700">
-          VetClínica · Sistema de gestión
+          Haku Veterinaria · Sistema de gestión
         </div>
         <h1 className="mb-2 font-heading text-[40px] leading-[1.05]">
           Entrar al sistema

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ficha de la mascota — VetClínica",
+  title: "Ficha de la mascota — Haku Veterinaria",
 };
 
 export default async function PatientFichaPage({

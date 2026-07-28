@@ -19,7 +19,7 @@ export function AppNav() {
 
   return (
     <nav className="flex flex-wrap items-center gap-4 px-4 py-3">
-      <span className="font-heading text-lg font-semibold">VetClínica</span>
+      <span className="font-heading text-lg font-semibold">Haku Veterinaria</span>
       {NAV_LINKS.filter((link) => isNavLinkVisible(link, role)).map((link) => {
         const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
         return (
