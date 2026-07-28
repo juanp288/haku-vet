@@ -8,8 +8,11 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // Silencia el aviso de baja de node10/baseUrl (TS 7.0). Nest CLI usa
+    // resolución clásica de CommonJS; migrar a NodeNext exigiría poner
+    // extensión .js en cada import relativo, algo no idiomático en Nest.
+    "ignoreDeprecations": "5.0"
   }
 }
