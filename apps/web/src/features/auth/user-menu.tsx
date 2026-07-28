@@ -3,13 +3,12 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "./role-labels";
-import { useCurrentUser, useLogout, useSessionRefresh } from "./use-auth";
+import { useCurrentUser, useLogout } from "./use-auth";
 
 export function UserMenu() {
   const router = useRouter();
   const { data } = useCurrentUser();
   const logout = useLogout();
-  useSessionRefresh(!!data);
 
   if (!data) {
     return null;
