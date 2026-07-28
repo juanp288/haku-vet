@@ -1,0 +1,510 @@
+# Modelo de datos
+
+Este es el documento más importante del paquete. **El esquema lo defines tú, no el agente.** Es la decisión más cara de revertir.
+
+---
+
+## 1. Diagrama de relaciones
+
+```
+User ──────< Appointment >────── Patient ──────< PatientTutor >────── Tutor
+  │              │                  │                                   │
+  │              │                  ├──< VaccineApplication >── Vaccine  │
+  │              ▼                  │                                   │
+  └──────── Consultation ───────────┤                                   │
+                 │                  ├──< Attachment                      │
+                 ├──< Addendum      │                                   │
+                 │                  └──< Reminder >─────────────────────┘
+                 └──< Attachment
+
+AuditLog ── (polimórfico, sin FK) ──> cualquier entidad
+Breed ──> catálogo por especie
+ClinicSettings ──> fila única
+```
+
+## 2. Decisiones de modelado y su porqué
+
+| Decisión | Porqué |
+|---|---|
+| `PatientTutor` como tabla intermedia | Una mascota puede tener dos dueños (pareja que se separa, familia). Un acudiente tiene varias mascotas. Modelarlo 1:N desde el inicio te obliga a migrar después |
+| `Consultation` separada de `Appointment` | Una cita puede terminar en inasistencia (no hay consulta) y una urgencia genera consulta sin cita previa. Acoplarlas rompe ambos casos |
+| Signos vitales dentro de `Consultation` | En v1 se toman una sola vez por consulta. Cuando llegue hospitalización se creará `VitalSignsRecord` con FK a `Consultation`, sin romper lo existente |
+| `Addendum` en vez de editar `Consultation` | La historia clínica es un documento legal. Una consulta cerrada es inmutable; las correcciones se agregan, firmadas y fechadas |
+| `Vaccine` como catálogo, `VaccineApplication` como evento | Permite cambiar el intervalo de refuerzo de un biológico sin alterar aplicaciones históricas |
+| `nextDueDate` almacenado, no calculado | El veterinario puede sobrescribirlo por criterio clínico. Si lo calculas al vuelo, pierdes esa decisión |
+| `Reminder` como tabla | En v1 es una bandeja interna. Cuando llegue WhatsApp, solo agregas `channel` y `sentAt`. La lógica de generación ya existe |
+| IDs: `cuid()` en vez de autoincremento | Permite generar IDs en cliente, evita colisiones si algún día hay sincronización o multi-sede |
+| Sin borrado físico | `isActive` / `deletedAt`. En una clínica, "se borró un paciente" es un incidente, no una operación |
+| `ClinicSettings` de fila única | Nombre, NIT, dirección, logo, horarios, duración de cita por defecto. Evita valores quemados en el código |
+
+## 3. schema.prisma
+
+```prisma
+// packages/db/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum Role {
+  ADMIN
+  VETERINARIO
+  RECEPCION
+  AUXILIAR
+}
+
+enum Species {
+  CANINO
+  FELINO
+  AVE
+  ROEDOR
+  REPTIL
+  OTRO
+}
+
+enum Sex {
+  MACHO
+  HEMBRA
+  DESCONOCIDO
+}
+
+enum DocumentType {
+  CC
+  CE
+  NIT
+  PASAPORTE
+  OTRO
+}
+
+enum AppointmentType {
+  CONSULTA
+  VACUNACION
+  CONTROL
+  PROCEDIMIENTO
+  URGENCIA
+  OTRO
+}
+
+enum AppointmentStatus {
+  AGENDADA
+  CONFIRMADA
+  EN_SALA
+  EN_ATENCION
+  ATENDIDA
+  NO_ASISTIO
+  CANCELADA
+}
+
+enum ConsultationStatus {
+  BORRADOR
+  CERRADA
+}
+
+enum ReminderType {
+  VACUNA
+  CONTROL
+  CITA
+}
+
+enum ReminderStatus {
+  PENDIENTE
+  ATENDIDO
+  DESCARTADO
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  CLOSE
+  ADDENDUM
+  DEACTIVATE
+  LOGIN
+}
+
+// ─────────────────────────── Personal ───────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         Role
+  // Solo para VETERINARIO: aparece en la agenda y firma consultas
+  licenseNumber String?
+  color        String?  // color en la agenda, hex
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  appointmentsAsVet   Appointment[]  @relation("AppointmentVet")
+  appointmentsCreated Appointment[]  @relation("AppointmentCreator")
+  consultations       Consultation[]
+  addenda             Addendum[]
+  vaccineApplications VaccineApplication[]
+  attachments         Attachment[]
+  auditLogs           AuditLog[]
+
+  @@index([role, isActive])
+}
+
+// ─────────────────────────── Acudientes ───────────────────────────
+
+model Tutor {
+  id             String       @id @default(cuid())
+  documentType   DocumentType @default(CC)
+  documentNumber String
+  firstName      String
+  lastName       String
+  phone          String
+  phoneAlt       String?
+  email          String?
+  address        String?
+  city           String?
+  notes          String?      @db.Text
+
+  // Habeas Data — obligatorio antes de guardar
+  dataConsent    Boolean   @default(false)
+  dataConsentAt  DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patients  PatientTutor[]
+  reminders Reminder[]
+
+  @@unique([documentType, documentNumber])
+  @@index([lastName, firstName])
+  @@index([phone])
+}
+
+// ─────────────────────────── Pacientes ───────────────────────────
+
+model Patient {
+  id                 String   @id @default(cuid())
+  name               String
+  species            Species
+  speciesOther       String?  // obligatorio si species == OTRO
+  breedId            String?
+  breedOther         String?
+  sex                Sex      @default(DESCONOCIDO)
+  isNeutered         Boolean  @default(false)
+  birthDate          DateTime?
+  birthDateIsApprox  Boolean  @default(false)
+  color              String?
+  microchip          String?  @unique
+  photoPath          String?
+
+  // Alertas que deben verse siempre al abrir la historia
+  allergies          String?  @db.Text
+  chronicConditions  String?  @db.Text
+  clinicalAlert      String?  // ej. "agresivo, requiere bozal"
+
+  isDeceased         Boolean  @default(false)
+  deceasedAt         DateTime?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  breed               Breed?               @relation(fields: [breedId], references: [id])
+  tutors              PatientTutor[]
+  appointments        Appointment[]
+  consultations       Consultation[]
+  vaccineApplications VaccineApplication[]
+  attachments         Attachment[]
+  reminders           Reminder[]
+
+  @@index([name])
+  @@index([species, isActive])
+}
+
+model PatientTutor {
+  id           String   @id @default(cuid())
+  patientId    String
+  tutorId      String
+  isPrimary    Boolean  @default(false)
+  relationship String?  // "propietario", "cuidador", "familiar"
+  createdAt    DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  tutor   Tutor   @relation(fields: [tutorId], references: [id])
+
+  @@unique([patientId, tutorId])
+  @@index([tutorId])
+}
+
+model Breed {
+  id       String  @id @default(cuid())
+  name     String
+  species  Species
+  isActive Boolean @default(true)
+
+  patients Patient[]
+
+  @@unique([species, name])
+}
+
+// ─────────────────────────── Agenda ───────────────────────────
+
+model Appointment {
+  id          String            @id @default(cuid())
+  patientId   String
+  vetId       String
+  createdById String
+  startsAt    DateTime
+  endsAt      DateTime
+  type        AppointmentType   @default(CONSULTA)
+  status      AppointmentStatus @default(AGENDADA)
+  reason      String
+  notes       String?           @db.Text
+
+  arrivedAt      DateTime?
+  cancelledAt    DateTime?
+  cancelReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  vet          User          @relation("AppointmentVet", fields: [vetId], references: [id])
+  createdBy    User          @relation("AppointmentCreator", fields: [createdById], references: [id])
+  consultation Consultation?
+
+  @@index([vetId, startsAt])
+  @@index([startsAt, status])
+  @@index([patientId])
+}
+
+// ─────────────────────────── Historia clínica ───────────────────────────
+
+model Consultation {
+  id            String             @id @default(cuid())
+  patientId     String
+  appointmentId String?            @unique
+  vetId         String
+  occurredAt    DateTime           @default(now())
+  status        ConsultationStatus @default(BORRADOR)
+  closedAt      DateTime?
+
+  reason        String
+
+  // SOAP
+  subjective String? @db.Text
+  objective  String? @db.Text
+  assessment String? @db.Text
+  plan       String? @db.Text
+
+  diagnosis     String? @db.Text
+  treatment     String? @db.Text
+  prescription  String? @db.Text
+
+  // Signos vitales
+  weightKg          Decimal? @db.Decimal(6, 2)
+  temperatureC      Decimal? @db.Decimal(4, 1)
+  heartRate         Int?
+  respiratoryRate   Int?
+  bodyConditionScore Int?    // escala 1-9
+  mucousMembranes   String?
+  capillaryRefill   Decimal? @db.Decimal(3, 1) // segundos
+
+  nextControlAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient             Patient              @relation(fields: [patientId], references: [id])
+  appointment         Appointment?         @relation(fields: [appointmentId], references: [id])
+  vet                 User                 @relation(fields: [vetId], references: [id])
+  addenda             Addendum[]
+  attachments         Attachment[]
+  vaccineApplications VaccineApplication[]
+
+  @@index([patientId, occurredAt])
+  @@index([vetId, occurredAt])
+}
+
+model Addendum {
+  id             String   @id @default(cuid())
+  consultationId String
+  authorId       String
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+  author       User         @relation(fields: [authorId], references: [id])
+
+  @@index([consultationId])
+}
+
+// ─────────────────────────── Vacunación ───────────────────────────
+
+model Vaccine {
+  id                String   @id @default(cuid())
+  name              String
+  species           Species
+  description       String?
+  // Días hasta la siguiente dosis. null = dosis única
+  boosterIntervalDays Int?
+  // Días de la serie inicial en cachorro, ej. [0, 21, 42]
+  initialSeriesDays Int[]    @default([])
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  applications VaccineApplication[]
+
+  @@unique([species, name])
+}
+
+model VaccineApplication {
+  id             String   @id @default(cuid())
+  patientId      String
+  vaccineId      String
+  consultationId String?
+  vetId          String
+
+  appliedAt      DateTime
+  batchNumber    String?
+  batchExpiresAt DateTime?
+  laboratory     String?
+  doseNumber     Int?
+
+  // Calculado al crear, editable por el veterinario
+  nextDueAt      DateTime?
+
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  vaccine      Vaccine       @relation(fields: [vaccineId], references: [id])
+  consultation Consultation? @relation(fields: [consultationId], references: [id])
+  vet          User          @relation(fields: [vetId], references: [id])
+  reminders    Reminder[]
+
+  @@index([patientId, appliedAt])
+  @@index([nextDueAt])
+}
+
+// ─────────────────────────── Recordatorios ───────────────────────────
+
+model Reminder {
+  id        String         @id @default(cuid())
+  type      ReminderType
+  status    ReminderStatus @default(PENDIENTE)
+  patientId String
+  tutorId   String
+  dueAt     DateTime
+  message   String
+
+  vaccineApplicationId String?
+
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime @default(now())
+
+  patient            Patient             @relation(fields: [patientId], references: [id])
+  tutor              Tutor               @relation(fields: [tutorId], references: [id])
+  vaccineApplication VaccineApplication? @relation(fields: [vaccineApplicationId], references: [id])
+
+  // Garantiza la idempotencia del cron (RN-14)
+  @@unique([patientId, type, vaccineApplicationId, dueAt])
+  @@index([status, dueAt])
+  @@index([patientId])
+}
+
+// ─────────────────────────── Archivos ───────────────────────────
+
+model Attachment {
+  id             String   @id @default(cuid())
+  patientId      String
+  consultationId String?
+  uploadedById   String
+
+  fileName    String
+  storagePath String   // relativo a STORAGE_ROOT, nunca absoluto
+  mimeType    String
+  sizeBytes   Int
+  description String?
+
+  isActive  Boolean  @default(true) // RN-16: se desactiva, el archivo permanece en disco
+  createdAt DateTime @default(now())
+
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  consultation Consultation? @relation(fields: [consultationId], references: [id])
+  uploadedBy   User          @relation(fields: [uploadedById], references: [id])
+
+  @@index([patientId])
+  @@index([consultationId])
+}
+
+// ─────────────────────────── Auditoría y config ───────────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String
+  action     AuditAction
+  entityName String
+  entityId   String
+  changes    Json?
+  ipAddress  String?
+  createdAt  DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityName, entityId])
+  @@index([userId, createdAt])
+}
+
+model ClinicSettings {
+  id                    String   @id @default("singleton")
+  name                  String
+  taxId                 String?
+  address               String?
+  phone                 String?
+  email                 String?
+  logoPath              String?
+  timezone              String   @default("America/Bogota")
+  defaultAppointmentMin Int      @default(30)
+  openingHour           Int      @default(8)
+  closingHour           Int      @default(18)
+  workingDays           Int[]    @default([1, 2, 3, 4, 5, 6]) // 0=domingo
+  updatedAt             DateTime @updatedAt
+}
+```
+
+## 4. Índices: por qué están donde están
+
+- `Tutor.phone` y `Tutor(lastName, firstName)` — el 80% de las búsquedas de recepción son por teléfono o apellido.
+- `Patient.name` — "vino Luna", sin apellido del dueño.
+- `Appointment(vetId, startsAt)` — la consulta de la agenda del día, la más frecuente del sistema.
+- `Consultation(patientId, occurredAt)` — cargar la historia clínica en orden cronológico inverso.
+- `VaccineApplication.nextDueAt` — el cron nocturno que genera recordatorios barre por esta columna.
+
+## 5. Extensiones futuras previstas
+
+No se implementan ahora, pero el esquema no las bloquea:
+
+| Módulo v2 | Cómo encaja |
+|---|---|
+| Facturación | `Invoice`, `InvoiceItem`, `Payment`, `Service` (catálogo de precios). FK a `Consultation` y `Tutor` |
+| Inventario | `Product`, `StockBatch`, `StockMovement`. `InvoiceItem` descuenta stock |
+| Hospitalización | `Hospitalization` con FK a `Patient`, y `TreatmentEntry` por hora |
+| WhatsApp | `Reminder` gana `channel`, `sentAt`, `externalId`. Ningún cambio estructural |
+| Portal del acudiente | `Tutor` gana `passwordHash` y `portalEnabled`. `User` sigue siendo solo personal |
+| Laboratorio | `LabOrder`, `LabResult` con FK a `Consultation` |
+
+## 6. Datos semilla mínimos
+
+El `seed.ts` debe crear:
+
+- Un usuario `ADMIN` con credenciales del archivo `.env`
+- La fila `ClinicSettings` con datos de la clínica
+- Razas comunes de caninos y felinos (unas 60 y 25 respectivamente)
+- Catálogo básico de biológicos: quíntuple/séxtuple canina, rabia, tos de perreras, triple felina, leucemia felina — con sus intervalos de refuerzo

@@ -1,0 +1,2073 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./support.js"></script>
+  </head>
+  <body>
+    <x-dc>
+      <helmet>
+        <link
+          rel="stylesheet"
+          href="_ds/broadsheet-3853b9fe-d5f4-4ab3-93b8-bbb15786f2d7/styles.css"
+        />
+        <script src="_ds/broadsheet-3853b9fe-d5f4-4ab3-93b8-bbb15786f2d7/_ds_bundle.js"></script>
+        <style>
+          body {
+            margin: 0;
+            background: var(--color-bg);
+          }
+          a {
+            color: var(--color-accent-700);
+          }
+          a:hover {
+            color: var(--color-accent-900);
+          }
+        </style>
+      </helmet>
+
+      <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+        <div
+          style="
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: var(--space-8) 12vw;
+            box-sizing: border-box;
+          "
+        >
+          <div style="max-width: 380px; width: 100%">
+            <div
+              style="
+                font-family: var(--font-heading);
+                font-size: 13px;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--color-accent-700);
+                margin-bottom: var(--space-3);
+              "
+            >
+              VetClínica · Sistema de gestión
+            </div>
+            <h1
+              style="
+                font-family: var(--font-heading);
+                font-size: 40px;
+                line-height: 1.05;
+                margin: 0 0 var(--space-2);
+              "
+            >
+              Entrar al sistema
+            </h1>
+            <p
+              style="
+                font-family: var(--font-body);
+                font-size: 15px;
+                opacity: 0.7;
+                margin: 0 0 var(--space-6);
+              "
+            >
+              Correo y contraseña del personal de la clínica.
+            </p>
+            <div class="field" style="margin-bottom: var(--space-4)">
+              <label for="login-email">Correo</label>
+              <input
+                class="input"
+                id="login-email"
+                placeholder="camila.torres@vetclinica.co"
+                value="camila.torres@vetclinica.co"
+              />
+            </div>
+            <div class="field" style="margin-bottom: var(--space-2)">
+              <label for="login-pass">Contraseña</label>
+              <input
+                class="input"
+                id="login-pass"
+                type="password"
+                value="••••••••"
+              />
+            </div>
+            <sc-if value="{{ loginError }}" hint-placeholder-val="{{ false }}">
+              <p
+                style="
+                  font-family: var(--font-body);
+                  font-size: 13px;
+                  color: var(--color-accent-2-700);
+                  margin: 0 0 var(--space-3);
+                "
+              >
+                Correo o contraseña incorrectos.
+              </p>
+            </sc-if>
+            <button
+              type="button"
+              class="btn btn-primary btn-block"
+              onclick="{{ doLogin }}"
+              style="margin-top: var(--space-3)"
+            >
+              Iniciar sesión
+            </button>
+            <p
+              style="
+                font-family: var(--font-body);
+                font-size: 12px;
+                opacity: 0.55;
+                margin-top: var(--space-6);
+              "
+            >
+              Sesión válida por 12 horas. Después de 5 intentos fallidos el
+              acceso se bloquea 15 minutos.
+            </p>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <nav class="nav" style="flex-wrap: wrap; row-gap: var(--space-2)">
+            <span class="nav-brand" style="white-space: nowrap"
+              >VetClínica</span
+            >
+            <a
+              href="#"
+              onclick="{{ goAgenda }}"
+              aria-current="{{ agendaCurrent }}"
+              style="white-space: nowrap"
+              >Agenda</a
+            >
+            <a
+              href="#"
+              onclick="{{ goSemana }}"
+              aria-current="{{ semanaCurrent }}"
+              style="white-space: nowrap"
+              >Semana</a
+            >
+            <a
+              href="#"
+              onclick="{{ goAcudientes }}"
+              aria-current="{{ acudientesCurrent }}"
+              style="white-space: nowrap"
+              >Acudientes</a
+            >
+            <a
+              href="#"
+              onclick="{{ goFicha }}"
+              aria-current="{{ fichaCurrent }}"
+              style="white-space: nowrap"
+              >Ficha</a
+            >
+            <a
+              href="#"
+              onclick="{{ goCarnet }}"
+              aria-current="{{ carnetCurrent }}"
+              style="white-space: nowrap"
+              >Carnet</a
+            >
+            <a
+              href="#"
+              onclick="{{ goConsulta }}"
+              aria-current="{{ consultaCurrent }}"
+              style="white-space: nowrap"
+              >Consulta</a
+            >
+            <a
+              href="#"
+              onclick="{{ goRecordatorios }}"
+              aria-current="{{ recordatoriosCurrent }}"
+              style="white-space: nowrap"
+              >Recordatorios</a
+            >
+            <a
+              href="#"
+              onclick="{{ goAdmin }}"
+              aria-current="{{ adminCurrent }}"
+              style="white-space: nowrap"
+              >Admin</a
+            >
+            <span style="flex: 1; min-width: var(--space-4)"></span>
+            <span
+              style="
+                font-family: var(--font-body);
+                font-size: 13px;
+                opacity: 0.65;
+                margin-right: var(--space-3);
+                white-space: nowrap;
+              "
+              >{{ currentUserLabel }}</span
+            >
+            <button
+              type="button"
+              class="btn btn-ghost"
+              onclick="{{ doLogout }}"
+              style="white-space: nowrap"
+            >
+              Salir
+            </button>
+          </nav>
+
+          <sc-if value="{{ view.agenda }}" hint-placeholder-val="{{ true }}">
+            <div style="padding: var(--space-6) var(--space-6) var(--space-8)">
+              <div
+                style="
+                  display: flex;
+                  align-items: baseline;
+                  justify-content: space-between;
+                  margin-bottom: var(--space-4);
+                  flex-wrap: wrap;
+                  gap: var(--space-3);
+                "
+              >
+                <div>
+                  <h1
+                    style="
+                      font-family: var(--font-heading);
+                      font-size: 30px;
+                      margin: 0 0 var(--space-1);
+                    "
+                  >
+                    Agenda del día
+                  </h1>
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: var(--space-2);
+                      font-family: var(--font-body);
+                      font-size: 14px;
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-icon"
+                      aria-label="Día anterior"
+                    >
+                      ‹
+                    </button>
+                    <span style="font-weight: 600">{{ todayLabel }}</span>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-icon"
+                      aria-label="Día siguiente"
+                    >
+                      ›
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost"
+                      style="margin-left: var(--space-2)"
+                    >
+                      Hoy
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  onclick="{{ openDialog }}"
+                >
+                  + Nueva cita
+                </button>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  gap: var(--space-4);
+                  align-items: flex-start;
+                "
+              >
+                <sc-for list="{{ vets }}" as="vet" hint-placeholder-count="3">
+                  <div style="flex: 1; min-width: 0">
+                    <div
+                      style="display:flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-3); padding-bottom:var(--space-2); border-bottom:2px solid {{ vet.color }};"
+                    >
+                      <span
+                        style="
+                          font-family: var(--font-heading);
+                          font-size: 17px;
+                          font-weight: 600;
+                        "
+                        >{{ vet.name }}</span
+                      >
+                    </div>
+                    <div style="display: grid; gap: var(--space-2)">
+                      <sc-for
+                        list="{{ vet.slots }}"
+                        as="slot"
+                        hint-placeholder-count="6"
+                      >
+                        <sc-if
+                          value="{{ slot.appt }}"
+                          hint-placeholder-val="{{ false }}"
+                        >
+                          <div
+                            class="card"
+                            style="padding: var(--space-3); cursor: pointer"
+                            onclick="{{ goFicha }}"
+                          >
+                            <div
+                              style="
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: flex-start;
+                                gap: var(--space-2);
+                              "
+                            >
+                              <span
+                                style="
+                                  font-family: var(--font-body);
+                                  font-size: 12px;
+                                  font-weight: 600;
+                                  opacity: 0.6;
+                                "
+                                >{{ slot.appt.time }}</span
+                              >
+                              <span class="tag {{ slot.appt.tagClass }}"
+                                >{{ slot.appt.statusLabel }}</span
+                              >
+                            </div>
+                            <div
+                              class="card-title"
+                              style="
+                                font-size: 16px;
+                                margin-top: var(--space-1);
+                              "
+                            >
+                              {{ slot.appt.patient }}
+                            </div>
+                            <div class="card-body" style="font-size: 13px">
+                              {{ slot.appt.tutor }} · {{ slot.appt.reason }}
+                            </div>
+                          </div>
+                        </sc-if>
+                        <sc-if
+                          value="{{ slot.empty }}"
+                          hint-placeholder-val="{{ false }}"
+                        >
+                          <button
+                            type="button"
+                            onclick="{{ openDialog }}"
+                            style="
+                              all: unset;
+                              cursor: pointer;
+                              display: flex;
+                              align-items: center;
+                              gap: var(--space-2);
+                              padding: var(--space-2) var(--space-3);
+                              border-radius: var(--radius-md);
+                              font-family: var(--font-body);
+                              font-size: 13px;
+                              opacity: 0.4;
+                            "
+                            class="slot-empty"
+                          >
+                            <span style="font-weight: 600">{{ slot.time }}</span
+                            ><span>Libre</span>
+                          </button>
+                        </sc-if>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if
+            value="{{ view.acudientes }}"
+            hint-placeholder-val="{{ false }}"
+          >
+            <div
+              style="
+                padding: var(--space-6) var(--space-6) var(--space-8);
+                max-width: 1100px;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: baseline;
+                  flex-wrap: wrap;
+                  gap: var(--space-3);
+                "
+              >
+                <h1
+                  style="
+                    font-family: var(--font-heading);
+                    font-size: 30px;
+                    margin: 0 0 var(--space-4);
+                  "
+                >
+                  Acudientes y mascotas
+                </h1>
+                <div style="display: flex; gap: var(--space-2)">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="{{ openAcudienteDialog }}"
+                  >
+                    + Nuevo acudiente
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="{{ openMascotaDialog }}"
+                  >
+                    + Nueva mascota
+                  </button>
+                </div>
+              </div>
+              <div
+                class="field"
+                style="max-width: 460px; margin-bottom: var(--space-4)"
+              >
+                <label for="search"
+                  >Buscar por teléfono, documento, acudiente o mascota</label
+                >
+                <input
+                  class="input"
+                  id="search"
+                  value="Núñez"
+                  placeholder="Ej. Luna, 3001234567, Núñez"
+                />
+              </div>
+              <table class="table" style="margin-bottom: var(--space-8)">
+                <thead>
+                  <tr>
+                    <th>Mascota</th>
+                    <th>Especie</th>
+                    <th>Acudiente principal</th>
+                    <th>Teléfono</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for
+                    list="{{ searchResults }}"
+                    as="r"
+                    hint-placeholder-count="4"
+                  >
+                    <tr>
+                      <td>{{ r.patient }}</td>
+                      <td>{{ r.species }}</td>
+                      <td>{{ r.tutor }}</td>
+                      <td class="text-muted">{{ r.phone }}</td>
+                      <td><a href="#" onclick="{{ goFicha }}">Ver ficha</a></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+
+              <h2
+                style="
+                  font-family: var(--font-heading);
+                  font-size: 22px;
+                  margin: 0 0 var(--space-3);
+                "
+              >
+                Ficha del acudiente
+              </h2>
+              <div style="display: flex; gap: var(--space-6); flex-wrap: wrap">
+                <div style="flex: 1; min-width: 280px">
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      display: grid;
+                      gap: var(--space-2);
+                      font-size: 14px;
+                    "
+                  >
+                    <div>
+                      <strong>Nombre</strong><br />María Fernanda Núñez Rojas
+                    </div>
+                    <div><strong>Documento</strong><br />CC 52.334.981</div>
+                    <div><strong>Teléfono</strong><br />+57 300 654 2211</div>
+                    <div><strong>Correo</strong><br />mafe.nunez@gmail.com</div>
+                    <div>
+                      <strong>Dirección</strong><br />Cra 45 #12–30, Bogotá
+                    </div>
+                    <div style="margin-top: var(--space-2)">
+                      <span class="tag tag-outline"
+                        >Autorización de datos firmada · 12 mar 2024</span
+                      >
+                    </div>
+                  </div>
+                </div>
+                <div style="flex: 1; min-width: 280px">
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      font-size: 13px;
+                      letter-spacing: 0.08em;
+                      text-transform: uppercase;
+                      opacity: 0.55;
+                      margin-bottom: var(--space-2);
+                    "
+                  >
+                    Mascotas vinculadas
+                  </div>
+                  <div style="display: grid; gap: var(--space-2)">
+                    <div
+                      class="card"
+                      style="padding: var(--space-3); cursor: pointer"
+                      onclick="{{ goFicha }}"
+                    >
+                      <div class="card-title" style="font-size: 15px">
+                        Luna
+                        <span
+                          class="tag tag-accent"
+                          style="margin-left: var(--space-2)"
+                          >Principal</span
+                        >
+                      </div>
+                      <div class="card-body" style="font-size: 13px">
+                        Canino · Labrador Retriever · 3 años 2 meses
+                      </div>
+                    </div>
+                    <div class="card" style="padding: var(--space-3)">
+                      <div class="card-title" style="font-size: 15px">
+                        Michi
+                      </div>
+                      <div class="card-body" style="font-size: 13px">
+                        Felino · Criollo · 1 año
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ view.ficha }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex">
+              <div
+                style="
+                  flex: 1;
+                  padding: var(--space-6) var(--space-6) var(--space-8);
+                  max-width: 1000px;
+                "
+              >
+                <div
+                  style="
+                    display: flex;
+                    gap: var(--space-4);
+                    align-items: flex-start;
+                    margin-bottom: var(--space-4);
+                  "
+                >
+                  <div
+                    style="
+                      width: 88px;
+                      height: 88px;
+                      border-radius: 50%;
+                      background: var(--color-neutral-200);
+                      flex-shrink: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      font-family: var(--font-heading);
+                      font-size: 28px;
+                      color: var(--color-neutral-700);
+                    "
+                  >
+                    L
+                  </div>
+                  <div style="flex: 1">
+                    <h1
+                      style="
+                        font-family: var(--font-heading);
+                        font-size: 32px;
+                        margin: 0;
+                      "
+                    >
+                      Luna
+                    </h1>
+                    <div
+                      style="
+                        font-family: var(--font-body);
+                        font-size: 14px;
+                        opacity: 0.7;
+                        margin-top: var(--space-1);
+                      "
+                    >
+                      Canino · Labrador Retriever · Hembra esterilizada · 3 años
+                      2 meses · Último peso: 22.4 kg
+                    </div>
+                    <div
+                      style="
+                        font-family: var(--font-body);
+                        font-size: 13px;
+                        opacity: 0.55;
+                        margin-top: var(--space-1);
+                      "
+                    >
+                      Acudiente principal: María Fernanda Núñez Rojas · +57 300
+                      654 2211
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="card"
+                  style="
+                    padding: var(--space-3) var(--space-4);
+                    margin-bottom: var(--space-4);
+                    border-left: none;
+                  "
+                >
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      font-size: 12px;
+                      letter-spacing: 0.08em;
+                      text-transform: uppercase;
+                      color: var(--color-accent-2-700);
+                      margin-bottom: var(--space-1);
+                    "
+                  >
+                    Alertas clínicas
+                  </div>
+                  <div style="font-family: var(--font-body); font-size: 14px">
+                    Alergia a penicilina · Displasia de cadera (condición
+                    crónica)
+                  </div>
+                </div>
+
+                <div
+                  style="
+                    display: flex;
+                    gap: var(--space-4);
+                    border-bottom: 1px solid var(--color-neutral-300);
+                    margin-bottom: var(--space-4);
+                  "
+                >
+                  <button
+                    type="button"
+                    onclick="{{ setTabHistoria }}"
+                    style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ tabHistoriaBorder }}; color:{{ tabHistoriaColor }};"
+                  >
+                    Historia clínica
+                  </button>
+                  <button
+                    type="button"
+                    onclick="{{ setTabVacunas }}"
+                    style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ tabVacunasBorder }}; color:{{ tabVacunasColor }};"
+                  >
+                    Vacunas
+                  </button>
+                  <button
+                    type="button"
+                    onclick="{{ setTabCitas }}"
+                    style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ tabCitasBorder }}; color:{{ tabCitasColor }};"
+                  >
+                    Citas
+                  </button>
+                  <button
+                    type="button"
+                    onclick="{{ setTabAdjuntos }}"
+                    style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ tabAdjuntosBorder }}; color:{{ tabAdjuntosColor }};"
+                  >
+                    Adjuntos
+                  </button>
+                </div>
+
+                <sc-if
+                  value="{{ tab.historia }}"
+                  hint-placeholder-val="{{ true }}"
+                >
+                  <div style="display: grid; gap: var(--space-4)">
+                    <sc-for
+                      list="{{ consultations }}"
+                      as="c"
+                      hint-placeholder-count="3"
+                    >
+                      <div>
+                        <div
+                          style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: baseline;
+                            margin-bottom: var(--space-1);
+                          "
+                        >
+                          <div
+                            style="
+                              font-family: var(--font-heading);
+                              font-size: 17px;
+                              font-weight: 600;
+                            "
+                          >
+                            {{ c.date }} · {{ c.vet }}
+                          </div>
+                          <sc-if
+                            value="{{ c.isDraft }}"
+                            hint-placeholder-val="{{ false }}"
+                          >
+                            <span class="tag tag-neutral">Borrador propio</span>
+                          </sc-if>
+                        </div>
+                        <div
+                          style="
+                            font-family: var(--font-body);
+                            font-size: 14px;
+                            opacity: 0.85;
+                            margin-bottom: var(--space-2);
+                          "
+                        >
+                          <strong>Motivo:</strong> {{ c.reason }} ·
+                          <strong>Diagnóstico:</strong> {{ c.diagnosis }}
+                        </div>
+                        <sc-if
+                          value="{{ c.expanded }}"
+                          hint-placeholder-val="{{ false }}"
+                        >
+                          <div
+                            style="
+                              font-family: var(--font-body);
+                              font-size: 14px;
+                              display: grid;
+                              gap: var(--space-2);
+                              padding-left: var(--space-4);
+                              border-left: 2px solid var(--color-neutral-200);
+                            "
+                          >
+                            <div>
+                              <strong>S — Subjetivo:</strong> {{ c.subjective }}
+                            </div>
+                            <div>
+                              <strong>O — Objetivo:</strong> {{ c.objective }}
+                            </div>
+                            <div>
+                              <strong>A — Análisis:</strong> {{ c.assessment }}
+                            </div>
+                            <div><strong>P — Plan:</strong> {{ c.plan }}</div>
+                            <div style="opacity: 0.7">
+                              Peso {{ c.weight }} kg · Temp {{ c.temp }} °C · FC
+                              {{ c.hr }} · FR {{ c.rr }}
+                            </div>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if
+                  value="{{ tab.vacunas }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Biológico</th>
+                        <th>Aplicación</th>
+                        <th>Dosis</th>
+                        <th>Lote</th>
+                        <th>Veterinario</th>
+                        <th>Próxima dosis</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <sc-for
+                        list="{{ vaccineApplications }}"
+                        as="v"
+                        hint-placeholder-count="4"
+                      >
+                        <tr>
+                          <td>{{ v.vaccine }}</td>
+                          <td>{{ v.appliedAt }}</td>
+                          <td>{{ v.dose }}</td>
+                          <td class="text-muted">{{ v.batch }}</td>
+                          <td>{{ v.vet }}</td>
+                          <td>{{ v.nextDue }}</td>
+                          <td>
+                            <span class="tag {{ v.semaphoreClass }}"
+                              >{{ v.semaphoreLabel }}</span
+                            >
+                          </td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </sc-if>
+
+                <sc-if
+                  value="{{ tab.citas }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <div style="display: grid; gap: var(--space-2)">
+                    <sc-for
+                      list="{{ patientAppointments }}"
+                      as="a"
+                      hint-placeholder-count="3"
+                    >
+                      <div
+                        class="card"
+                        style="
+                          padding: var(--space-3);
+                          display: flex;
+                          justify-content: space-between;
+                          align-items: center;
+                        "
+                      >
+                        <div>
+                          <div class="card-title" style="font-size: 15px">
+                            {{ a.date }} · {{ a.time }}
+                          </div>
+                          <div class="card-body" style="font-size: 13px">
+                            {{ a.vet }} · {{ a.reason }}
+                          </div>
+                        </div>
+                        <span class="tag {{ a.tagClass }}"
+                          >{{ a.statusLabel }}</span
+                        >
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if
+                  value="{{ tab.adjuntos }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <div
+                    style="
+                      display: grid;
+                      grid-template-columns: repeat(
+                        auto-fill,
+                        minmax(160px, 1fr)
+                      );
+                      gap: var(--space-3);
+                    "
+                  >
+                    <sc-for
+                      list="{{ attachments }}"
+                      as="f"
+                      hint-placeholder-count="3"
+                    >
+                      <div class="card" style="padding: var(--space-3)">
+                        <div
+                          style="
+                            height: 90px;
+                            background: var(--color-neutral-200);
+                            border-radius: var(--radius-sm);
+                            margin-bottom: var(--space-2);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-family: var(--font-body);
+                            font-size: 12px;
+                            opacity: 0.5;
+                          "
+                        >
+                          {{ f.kind }}
+                        </div>
+                        <div
+                          style="font-family: var(--font-body); font-size: 13px"
+                        >
+                          {{ f.name }}
+                        </div>
+                        <div
+                          style="
+                            font-family: var(--font-body);
+                            font-size: 11px;
+                            opacity: 0.5;
+                          "
+                        >
+                          {{ f.date }}
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ view.carnet }}" hint-placeholder-val="{{ false }}">
+            <div
+              style="
+                padding: var(--space-6) var(--space-6) var(--space-8);
+                max-width: 900px;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: flex-start;
+                  margin-bottom: var(--space-4);
+                "
+              >
+                <div>
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      font-size: 12px;
+                      letter-spacing: 0.1em;
+                      text-transform: uppercase;
+                      opacity: 0.55;
+                    "
+                  >
+                    Carnet de vacunación
+                  </div>
+                  <h1
+                    style="
+                      font-family: var(--font-heading);
+                      font-size: 30px;
+                      margin: var(--space-1) 0 0;
+                    "
+                  >
+                    Luna
+                  </h1>
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      font-size: 14px;
+                      opacity: 0.7;
+                    "
+                  >
+                    Canino · Labrador Retriever · Hembra esterilizada ·
+                    Acudiente: María Fernanda Núñez Rojas
+                  </div>
+                </div>
+                <button type="button" class="btn btn-secondary">
+                  Imprimir PDF
+                </button>
+              </div>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Biológico</th>
+                    <th>Aplicación</th>
+                    <th>Dosis</th>
+                    <th>Lote</th>
+                    <th>Vence lote</th>
+                    <th>Veterinario</th>
+                    <th>Próxima dosis</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for
+                    list="{{ vaccineApplications }}"
+                    as="v"
+                    hint-placeholder-count="4"
+                  >
+                    <tr>
+                      <td>{{ v.vaccine }}</td>
+                      <td>{{ v.appliedAt }}</td>
+                      <td>{{ v.dose }}</td>
+                      <td class="text-muted">{{ v.batch }}</td>
+                      <td class="text-muted">{{ v.batchExpires }}</td>
+                      <td>{{ v.vet }}</td>
+                      <td>{{ v.nextDue }}</td>
+                      <td>
+                        <span class="tag {{ v.semaphoreClass }}"
+                          >{{ v.semaphoreLabel }}</span
+                        >
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <div
+                style="
+                  display: flex;
+                  gap: var(--space-4);
+                  margin-top: var(--space-4);
+                  font-family: var(--font-body);
+                  font-size: 12px;
+                  opacity: 0.65;
+                "
+              >
+                <span><span class="tag tag-outline">Al día</span> vigente</span>
+                <span
+                  ><span class="tag tag-accent">Por vencer</span> próximos 30
+                  días</span
+                >
+                <span
+                  ><span class="tag tag-accent-2">Vencida</span> requiere
+                  refuerzo</span
+                >
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ view.semana }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: var(--space-6) var(--space-6) var(--space-8)">
+              <div
+                style="
+                  display: flex;
+                  align-items: baseline;
+                  justify-content: space-between;
+                  margin-bottom: var(--space-4);
+                  flex-wrap: wrap;
+                  gap: var(--space-3);
+                "
+              >
+                <div>
+                  <h1
+                    style="
+                      font-family: var(--font-heading);
+                      font-size: 30px;
+                      margin: 0 0 var(--space-1);
+                    "
+                  >
+                    Vista semanal
+                  </h1>
+                  <div
+                    style="
+                      font-family: var(--font-body);
+                      font-size: 14px;
+                      opacity: 0.7;
+                    "
+                  >
+                    21 — 27 de julio de 2026
+                  </div>
+                </div>
+                <div style="display: flex; gap: var(--space-2)">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-icon"
+                    aria-label="Semana anterior"
+                  >
+                    ‹
+                  </button>
+                  <button type="button" class="btn btn-ghost">Hoy</button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-icon"
+                    aria-label="Semana siguiente"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Veterinario</th>
+                    <sc-for
+                      list="{{ weekDays }}"
+                      as="d"
+                      hint-placeholder-count="7"
+                      ><th>{{ d.label }}</th></sc-for
+                    >
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for
+                    list="{{ weekRows }}"
+                    as="row"
+                    hint-placeholder-count="3"
+                  >
+                    <tr>
+                      <td style="font-weight: 600">{{ row.vet }}</td>
+                      <sc-for
+                        list="{{ row.counts }}"
+                        as="c"
+                        hint-placeholder-count="7"
+                      >
+                        <td>
+                          <span class="tag {{ c.tagClass }}"
+                            >{{ c.label }}</span
+                          >
+                        </td>
+                      </sc-for>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <p
+                style="
+                  font-family: var(--font-body);
+                  font-size: 13px;
+                  opacity: 0.55;
+                  margin-top: var(--space-4);
+                "
+              >
+                Vista de planeación de turnos. Cada celda es el número de citas
+                agendadas ese día.
+              </p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ view.consulta }}" hint-placeholder-val="{{ false }}">
+            <div
+              style="
+                padding: var(--space-6) var(--space-6) var(--space-8);
+                max-width: 820px;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: baseline;
+                  margin-bottom: var(--space-1);
+                  flex-wrap: wrap;
+                  gap: var(--space-2);
+                "
+              >
+                <h1
+                  style="
+                    font-family: var(--font-heading);
+                    font-size: 30px;
+                    margin: 0;
+                  "
+                >
+                  Consulta — Luna
+                </h1>
+                <span class="tag tag-neutral"
+                  >Borrador · guardado automático</span
+                >
+              </div>
+              <div
+                style="
+                  font-family: var(--font-body);
+                  font-size: 14px;
+                  opacity: 0.7;
+                  margin-bottom: var(--space-4);
+                "
+              >
+                27 jul 2026 · Dra. Camila Torres · Cita 10:00 — Control de
+                vacunación
+              </div>
+
+              <div class="field" style="margin-bottom: var(--space-3)">
+                <label for="c-reason">Motivo de consulta</label
+                ><input
+                  class="input"
+                  id="c-reason"
+                  value="Control de vacunación y chequeo general"
+                />
+              </div>
+
+              <div
+                style="
+                  font-family: var(--font-body);
+                  font-size: 12px;
+                  letter-spacing: 0.08em;
+                  text-transform: uppercase;
+                  opacity: 0.55;
+                  margin: var(--space-4) 0 var(--space-2);
+                "
+              >
+                Signos vitales
+              </div>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: repeat(5, 1fr);
+                  gap: var(--space-3);
+                  margin-bottom: var(--space-4);
+                "
+              >
+                <div class="field">
+                  <label for="c-w">Peso (kg)</label
+                  ><input class="input" id="c-w" value="22.6" />
+                </div>
+                <div class="field">
+                  <label for="c-t">Temp (°C)</label
+                  ><input class="input" id="c-t" value="38.5" />
+                </div>
+                <div class="field">
+                  <label for="c-hr">FC</label
+                  ><input class="input" id="c-hr" value="98" />
+                </div>
+                <div class="field">
+                  <label for="c-rr">FR</label
+                  ><input class="input" id="c-rr" value="26" />
+                </div>
+                <div class="field">
+                  <label for="c-bcs">Cond. corporal</label
+                  ><input class="input" id="c-bcs" value="5" />
+                </div>
+              </div>
+
+              <div
+                style="
+                  font-family: var(--font-body);
+                  font-size: 12px;
+                  letter-spacing: 0.08em;
+                  text-transform: uppercase;
+                  opacity: 0.55;
+                  margin: var(--space-4) 0 var(--space-2);
+                "
+              >
+                Nota SOAP
+              </div>
+              <div style="display: grid; gap: var(--space-3)">
+                <div class="field">
+                  <label for="c-s">S — Subjetivo</label
+                  ><textarea class="input" id="c-s" rows="2">
+Acudiente reporta buen apetito y actividad normal desde el último control.</textarea
+                  >
+                </div>
+                <div class="field">
+                  <label for="c-o">O — Objetivo</label
+                  ><textarea class="input" id="c-o" rows="2">
+Mucosas rosadas, TLLC 1.5s, auscultación cardiopulmonar sin hallazgos.</textarea
+                  >
+                </div>
+                <div class="field">
+                  <label for="c-a">A — Análisis</label
+                  ><textarea class="input" id="c-a" rows="2">
+Paciente sano, al día con esquema de vacunación.</textarea
+                  >
+                </div>
+                <div class="field">
+                  <label for="c-p">P — Plan</label
+                  ><textarea class="input" id="c-p" rows="2">
+Continuar esquema. Próximo control en 6 meses.</textarea
+                  >
+                </div>
+                <div class="field">
+                  <label for="c-next">Próximo control</label
+                  ><input class="input" id="c-next" value="27/01/2027" />
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  gap: var(--space-2);
+                  margin-top: var(--space-5);
+                "
+              >
+                <button type="button" class="btn btn-secondary">
+                  Guardar borrador
+                </button>
+                <button type="button" class="btn btn-primary">
+                  Cerrar consulta
+                </button>
+              </div>
+              <p
+                style="
+                  font-family: var(--font-body);
+                  font-size: 12px;
+                  opacity: 0.55;
+                  margin-top: var(--space-2);
+                "
+              >
+                Al cerrar, la consulta queda inmutable. Las correcciones
+                posteriores se hacen mediante adenda.
+              </p>
+            </div>
+          </sc-if>
+
+          <sc-if
+            value="{{ view.recordatorios }}"
+            hint-placeholder-val="{{ false }}"
+          >
+            <div
+              style="
+                padding: var(--space-6) var(--space-6) var(--space-8);
+                max-width: 1000px;
+              "
+            >
+              <h1
+                style="
+                  font-family: var(--font-heading);
+                  font-size: 30px;
+                  margin: 0 0 var(--space-4);
+                "
+              >
+                Bandeja de recordatorios
+              </h1>
+              <div
+                style="
+                  display: flex;
+                  gap: var(--space-3);
+                  margin-bottom: var(--space-4);
+                "
+              >
+                <select class="input" style="max-width: 200px">
+                  <option>Todos los tipos</option>
+                  <option>Vacuna</option>
+                  <option>Control</option>
+                  <option>Cita</option>
+                </select>
+                <select class="input" style="max-width: 220px">
+                  <option>Próximos 30 días</option>
+                  <option>Vencidos</option>
+                  <option>Todos</option>
+                </select>
+              </div>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Mascota</th>
+                    <th>Acudiente</th>
+                    <th>Teléfono</th>
+                    <th>Motivo</th>
+                    <th>Fecha objetivo</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for
+                    list="{{ reminders }}"
+                    as="r"
+                    hint-placeholder-count="4"
+                  >
+                    <tr>
+                      <td>{{ r.patient }}</td>
+                      <td>{{ r.tutor }}</td>
+                      <td class="text-muted">{{ r.phone }}</td>
+                      <td>{{ r.message }}</td>
+                      <td>{{ r.dueAt }}</td>
+                      <td>
+                        <span class="tag {{ r.tagClass }}"
+                          >{{ r.statusLabel }}</span
+                        >
+                      </td>
+                      <td style="display: flex; gap: var(--space-2)">
+                        <button type="button" class="btn btn-ghost">
+                          Atendido
+                        </button>
+                        <button type="button" class="btn btn-ghost">
+                          Descartar
+                        </button>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <p
+                style="
+                  font-family: var(--font-body);
+                  font-size: 12px;
+                  opacity: 0.55;
+                  margin-top: var(--space-4);
+                "
+              >
+                Generados por el cron diario de las 6:00 a.m. Se marcan como
+                atendidos automáticamente al registrar la vacuna
+                correspondiente.
+              </p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ view.admin }}" hint-placeholder-val="{{ false }}">
+            <div
+              style="
+                padding: var(--space-6) var(--space-6) var(--space-8);
+                max-width: 1000px;
+              "
+            >
+              <h1
+                style="
+                  font-family: var(--font-heading);
+                  font-size: 30px;
+                  margin: 0 0 var(--space-4);
+                "
+              >
+                Administración
+              </h1>
+              <div
+                style="
+                  display: flex;
+                  gap: var(--space-4);
+                  border-bottom: 1px solid var(--color-neutral-300);
+                  margin-bottom: var(--space-4);
+                "
+              >
+                <button
+                  type="button"
+                  onclick="{{ setAdminUsuarios }}"
+                  style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ adminUsuariosBorder }}; color:{{ adminUsuariosColor }};"
+                >
+                  Usuarios
+                </button>
+                <button
+                  type="button"
+                  onclick="{{ setAdminConfig }}"
+                  style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ adminConfigBorder }}; color:{{ adminConfigColor }};"
+                >
+                  Configuración de la clínica
+                </button>
+                <button
+                  type="button"
+                  onclick="{{ setAdminBitacora }}"
+                  style="all:unset; cursor:pointer; padding-bottom:var(--space-2); font-family:var(--font-body); font-size:14px; font-weight:600; border-bottom:2px solid {{ adminBitacoraBorder }}; color:{{ adminBitacoraColor }};"
+                >
+                  Bitácora
+                </button>
+              </div>
+
+              <sc-if
+                value="{{ adminTab.usuarios }}"
+                hint-placeholder-val="{{ true }}"
+              >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-bottom: var(--space-3);
+                  "
+                >
+                  <button type="button" class="btn btn-primary">
+                    + Nuevo usuario
+                  </button>
+                </div>
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Correo</th>
+                      <th>Rol</th>
+                      <th>Registro</th>
+                      <th>Estado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for
+                      list="{{ users }}"
+                      as="u"
+                      hint-placeholder-count="4"
+                    >
+                      <tr>
+                        <td>{{ u.name }}</td>
+                        <td class="text-muted">{{ u.email }}</td>
+                        <td>{{ u.role }}</td>
+                        <td class="text-muted">{{ u.license }}</td>
+                        <td>
+                          <span class="tag {{ u.tagClass }}"
+                            >{{ u.statusLabel }}</span
+                          >
+                        </td>
+                        <td><a href="#">Editar</a></td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </sc-if>
+
+              <sc-if
+                value="{{ adminTab.config }}"
+                hint-placeholder-val="{{ false }}"
+              >
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: var(--space-4);
+                    max-width: 640px;
+                  "
+                >
+                  <div class="field">
+                    <label for="cfg-name">Nombre de la clínica</label
+                    ><input
+                      class="input"
+                      id="cfg-name"
+                      value="VetClínica San Rafael"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="cfg-nit">NIT</label
+                    ><input class="input" id="cfg-nit" value="901.234.567-1" />
+                  </div>
+                  <div class="field">
+                    <label for="cfg-open">Hora de apertura</label
+                    ><input class="input" id="cfg-open" value="08:00" />
+                  </div>
+                  <div class="field">
+                    <label for="cfg-close">Hora de cierre</label
+                    ><input class="input" id="cfg-close" value="18:00" />
+                  </div>
+                  <div class="field">
+                    <label for="cfg-dur"
+                      >Duración de cita por defecto (min)</label
+                    ><input class="input" id="cfg-dur" value="30" />
+                  </div>
+                  <div class="field">
+                    <label for="cfg-tz">Zona horaria</label
+                    ><input class="input" id="cfg-tz" value="America/Bogota" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  style="margin-top: var(--space-4)"
+                >
+                  Guardar cambios
+                </button>
+              </sc-if>
+
+              <sc-if
+                value="{{ adminTab.bitacora }}"
+                hint-placeholder-val="{{ false }}"
+              >
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Usuario</th>
+                      <th>Acción</th>
+                      <th>Entidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for
+                      list="{{ auditLogs }}"
+                      as="a"
+                      hint-placeholder-count="4"
+                    >
+                      <tr>
+                        <td class="text-muted">{{ a.date }}</td>
+                        <td>{{ a.user }}</td>
+                        <td>
+                          <span class="tag tag-neutral">{{ a.action }}</span>
+                        </td>
+                        <td>{{ a.entity }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if
+            value="{{ dialogAcudienteOpen }}"
+            hint-placeholder-val="{{ false }}"
+          >
+            <div class="dialog-backdrop">
+              <div
+                class="dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="dlg-ac-title"
+                style="width: 520px; max-width: 90vw"
+              >
+                <div class="dialog-title" id="dlg-ac-title">
+                  Nuevo acudiente
+                </div>
+                <div class="dialog-body">
+                  <div style="display: grid; gap: var(--space-3)">
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 2fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="ac-doctype">Tipo doc.</label
+                        ><select class="input" id="ac-doctype">
+                          <option>CC</option>
+                          <option>CE</option>
+                          <option>NIT</option>
+                          <option>Pasaporte</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="ac-docnum">Número de documento</label
+                        ><input
+                          class="input"
+                          id="ac-docnum"
+                          placeholder="1.020.304.050"
+                        />
+                      </div>
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="ac-first">Nombres</label
+                        ><input class="input" id="ac-first" />
+                      </div>
+                      <div class="field">
+                        <label for="ac-last">Apellidos</label
+                        ><input class="input" id="ac-last" />
+                      </div>
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="ac-phone">Teléfono</label
+                        ><input
+                          class="input"
+                          id="ac-phone"
+                          placeholder="+57 300 000 0000"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="ac-email">Correo (opcional)</label
+                        ><input class="input" id="ac-email" />
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="ac-addr">Dirección</label
+                      ><input class="input" id="ac-addr" />
+                    </div>
+                    <label class="radio"
+                      ><input type="checkbox" /><span class="dot"></span
+                      >Autoriza el tratamiento de sus datos personales (Habeas
+                      Data)</label
+                    >
+                  </div>
+                </div>
+                <div class="dialog-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="{{ closeAcudienteDialog }}"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="{{ closeAcudienteDialog }}"
+                  >
+                    Guardar acudiente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if
+            value="{{ dialogMascotaOpen }}"
+            hint-placeholder-val="{{ false }}"
+          >
+            <div class="dialog-backdrop">
+              <div
+                class="dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="dlg-ms-title"
+                style="width: 520px; max-width: 90vw"
+              >
+                <div class="dialog-title" id="dlg-ms-title">Nueva mascota</div>
+                <div class="dialog-body">
+                  <div style="display: grid; gap: var(--space-3)">
+                    <div class="field">
+                      <label for="ms-tutor">Acudiente</label
+                      ><input
+                        class="input"
+                        id="ms-tutor"
+                        value="María Fernanda Núñez Rojas"
+                        placeholder="Buscar acudiente…"
+                      />
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="ms-name">Nombre</label
+                        ><input class="input" id="ms-name" />
+                      </div>
+                      <div class="field">
+                        <label for="ms-species">Especie</label
+                        ><select class="input" id="ms-species">
+                          <option>Canino</option>
+                          <option>Felino</option>
+                          <option>Ave</option>
+                          <option>Roedor</option>
+                          <option>Reptil</option>
+                          <option>Otro</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="ms-breed">Raza</label
+                        ><select class="input" id="ms-breed">
+                          <option>Labrador Retriever</option>
+                          <option>Criollo</option>
+                          <option>Schnauzer</option>
+                          <option>Otra…</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="ms-sex">Sexo</label
+                        ><select class="input" id="ms-sex">
+                          <option>Hembra</option>
+                          <option>Macho</option>
+                          <option>Desconocido</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 2fr 1fr;
+                        gap: var(--space-3);
+                        align-items: end;
+                      "
+                    >
+                      <div class="field">
+                        <label for="ms-birth">Fecha de nacimiento</label
+                        ><input
+                          class="input"
+                          id="ms-birth"
+                          placeholder="dd/mm/aaaa"
+                        />
+                      </div>
+                      <label
+                        class="radio"
+                        style="padding-bottom: var(--space-2)"
+                        ><input type="checkbox" /><span class="dot"></span
+                        >Aproximada</label
+                      >
+                    </div>
+                    <div class="field">
+                      <label for="ms-chip">Microchip (opcional)</label
+                      ><input class="input" id="ms-chip" />
+                    </div>
+                  </div>
+                </div>
+                <div class="dialog-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="{{ closeMascotaDialog }}"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="{{ closeMascotaDialog }}"
+                  >
+                    Guardar mascota
+                  </button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ dialogOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="dialog-backdrop">
+              <div
+                class="dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="dlg-title"
+                style="width: 520px; max-width: 90vw"
+              >
+                <div class="dialog-title" id="dlg-title">Nueva cita</div>
+                <div class="dialog-body">
+                  <div style="display: grid; gap: var(--space-3)">
+                    <div class="field">
+                      <label for="dlg-patient">Mascota</label>
+                      <input
+                        class="input"
+                        id="dlg-patient"
+                        placeholder="Buscar mascota…"
+                        value="Luna — María Fernanda Núñez"
+                      />
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="dlg-vet">Veterinario</label>
+                        <select class="input" id="dlg-vet">
+                          <option>Dra. Camila Torres</option>
+                          <option>Dr. Andrés Rueda</option>
+                          <option>Dra. Valentina Nieto</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="dlg-type">Tipo</label>
+                        <select class="input" id="dlg-type">
+                          <option>Consulta</option>
+                          <option>Vacunación</option>
+                          <option>Control</option>
+                          <option>Procedimiento</option>
+                          <option>Urgencia</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div
+                      style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr 1fr;
+                        gap: var(--space-3);
+                      "
+                    >
+                      <div class="field">
+                        <label for="dlg-date">Fecha</label
+                        ><input
+                          class="input"
+                          id="dlg-date"
+                          value="27/07/2026"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="dlg-time">Hora</label
+                        ><input class="input" id="dlg-time" value="10:00" />
+                      </div>
+                      <div class="field">
+                        <label for="dlg-dur">Duración (min)</label
+                        ><input class="input" id="dlg-dur" value="30" />
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="dlg-reason">Motivo</label>
+                      <input
+                        class="input"
+                        id="dlg-reason"
+                        placeholder="Ej. Control de vacunación"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="dialog-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="{{ closeDialog }}"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="{{ closeDialog }}"
+                  >
+                    Agendar cita
+                  </button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </x-dc>
+    <script type="text/x-dc" data-dc-script>
+      class Component extends DCLogic {
+        state = {
+          loggedIn: true,
+          loginError: false,
+          view: 'agenda',
+          dialogOpen: false,
+          dialogAcudienteOpen: false,
+          dialogMascotaOpen: false,
+          tab: 'historia',
+          adminTab: 'usuarios',
+        };
+
+        doLogin = () => this.setState({ loggedIn: true });
+        doLogout = () => this.setState({ loggedIn: false, view: 'agenda' });
+        goAgenda = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'agenda' }); };
+        goSemana = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'semana' }); };
+        goAcudientes = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'acudientes' }); };
+        goFicha = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'ficha' }); };
+        goCarnet = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'carnet' }); };
+        goConsulta = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'consulta' }); };
+        goRecordatorios = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'recordatorios' }); };
+        goAdmin = (e) => { e && e.preventDefault && e.preventDefault(); this.setState({ view: 'admin' }); };
+        openDialog = () => this.setState({ dialogOpen: true });
+        closeDialog = () => this.setState({ dialogOpen: false });
+        openAcudienteDialog = () => this.setState({ dialogAcudienteOpen: true });
+        closeAcudienteDialog = () => this.setState({ dialogAcudienteOpen: false });
+        openMascotaDialog = () => this.setState({ dialogMascotaOpen: true });
+        closeMascotaDialog = () => this.setState({ dialogMascotaOpen: false });
+        setTabHistoria = () => this.setState({ tab: 'historia' });
+        setTabVacunas = () => this.setState({ tab: 'vacunas' });
+        setTabCitas = () => this.setState({ tab: 'citas' });
+        setTabAdjuntos = () => this.setState({ tab: 'adjuntos' });
+        setAdminUsuarios = () => this.setState({ adminTab: 'usuarios' });
+        setAdminConfig = () => this.setState({ adminTab: 'config' });
+        setAdminBitacora = () => this.setState({ adminTab: 'bitacora' });
+
+        vets = [
+          {
+            name: 'Dra. Camila Torres', color: 'var(--color-accent-500)',
+            slots: [
+              { time: '08:00', appt: { time: '08:00', patient: 'Luna', tutor: 'María F. Núñez', reason: 'Control de vacunación', statusLabel: 'Confirmada', tagClass: 'tag-accent' } },
+              { time: '08:30', empty: true },
+              { time: '09:00', appt: { time: '09:00', patient: 'Rocky', tutor: 'Jorge Salamanca', reason: 'Consulta general', statusLabel: 'En sala', tagClass: 'tag-accent-2' } },
+              { time: '09:30', empty: true },
+              { time: '10:00', appt: { time: '10:00', patient: 'Toby', tutor: 'Laura Prieto', reason: 'Revisión de oído', statusLabel: 'Agendada', tagClass: 'tag-neutral' } },
+              { time: '10:30', empty: true },
+            ],
+          },
+          {
+            name: 'Dr. Andrés Rueda', color: 'var(--color-accent-2-500)',
+            slots: [
+              { time: '08:00', empty: true },
+              { time: '08:30', appt: { time: '08:30', patient: 'Michi', tutor: 'María F. Núñez', reason: 'Vómito y decaimiento', statusLabel: 'En atención', tagClass: 'tag-accent' } },
+              { time: '09:00', empty: true },
+              { time: '09:30', appt: { time: '09:30', patient: 'Simón', tutor: 'Diana Cárdenas', reason: 'Urgencia — trauma en pata', statusLabel: 'En sala', tagClass: 'tag-accent-2' } },
+              { time: '10:00', empty: true },
+              { time: '10:30', empty: true },
+            ],
+          },
+          {
+            name: 'Dra. Valentina Nieto', color: 'var(--color-neutral-500)',
+            slots: [
+              { time: '08:00', appt: { time: '08:00', patient: 'Coco', tutor: 'Esteban Rico', reason: 'Cirugía menor — sutura', statusLabel: 'Atendida', tagClass: 'tag-neutral' } },
+              { time: '08:30', empty: true },
+              { time: '09:00', empty: true },
+              { time: '09:30', appt: { time: '09:30', patient: 'Nina', tutor: 'Paola Guzmán', reason: 'Control post-quirúrgico', statusLabel: 'No asistió', tagClass: 'tag-outline' } },
+              { time: '10:00', empty: true },
+              { time: '10:30', empty: true },
+            ],
+          },
+        ];
+
+        searchResults = [
+          { patient: 'Luna', species: 'Canino', tutor: 'María F. Núñez', phone: '+57 300 654 2211' },
+          { patient: 'Michi', species: 'Felino', tutor: 'María F. Núñez', phone: '+57 300 654 2211' },
+        ];
+
+        consultations = [
+          { date: '14 jul 2026', vet: 'Dra. Camila Torres', reason: 'Control de vacunación', diagnosis: 'Paciente sano', isDraft: false, expanded: true,
+            subjective: 'Acudiente reporta buen apetito y actividad normal.', objective: 'Peso estable, mucosas rosadas, auscultación cardiopulmonar sin hallazgos.',
+            assessment: 'Paciente sano, al día con esquema de vacunación.', plan: 'Continuar esquema. Control en 6 meses.', weight: '22.4', temp: '38.4', hr: '96', rr: '24' },
+          { date: '02 feb 2026', vet: 'Dr. Andrés Rueda', reason: 'Cojera pata trasera derecha', diagnosis: 'Displasia de cadera leve', isDraft: false, expanded: false },
+          { date: '20 sep 2025', vet: 'Dra. Camila Torres', reason: 'Consulta general', diagnosis: 'Otitis externa leve', isDraft: false, expanded: false },
+        ];
+
+        vaccineApplications = [
+          { vaccine: 'Séxtuple canina', appliedAt: '14 jul 2026', dose: '3/3', batch: 'L-9931', batchExpires: '10 dic 2027', vet: 'Dra. Camila Torres', nextDue: '14 jul 2027', semaphoreLabel: 'Al día', semaphoreClass: 'tag-outline' },
+          { vaccine: 'Rabia', appliedAt: '10 ago 2025', dose: '1/1', batch: 'R-4471', batchExpires: '05 mar 2027', vet: 'Dra. Camila Torres', nextDue: '10 ago 2026', semaphoreLabel: 'Por vencer', semaphoreClass: 'tag-accent' },
+          { vaccine: 'Tos de las perreras', appliedAt: '02 jun 2025', dose: 'única', batch: 'B-2210', batchExpires: '01 ene 2026', vet: 'Dr. Andrés Rueda', nextDue: '—', semaphoreLabel: 'Al día', semaphoreClass: 'tag-outline' },
+          { vaccine: 'Séxtuple canina', appliedAt: '20 dic 2024', dose: '2/3', batch: 'L-8820', batchExpires: '15 jul 2026', vet: 'Dra. Camila Torres', nextDue: '20 mar 2025', semaphoreLabel: 'Vencida', semaphoreClass: 'tag-accent-2' },
+        ];
+
+        patientAppointments = [
+          { date: '02 ago 2026', time: '10:00', vet: 'Dra. Camila Torres', reason: 'Control de vacunación', statusLabel: 'Confirmada', tagClass: 'tag-accent' },
+          { date: '14 jul 2026', time: '09:00', vet: 'Dra. Camila Torres', reason: 'Control de vacunación', statusLabel: 'Atendida', tagClass: 'tag-neutral' },
+          { date: '02 feb 2026', time: '11:30', vet: 'Dr. Andrés Rueda', reason: 'Cojera pata trasera', statusLabel: 'Atendida', tagClass: 'tag-neutral' },
+        ];
+
+        attachments = [
+          { kind: 'PDF', name: 'Radiografía cadera.pdf', date: '02 feb 2026' },
+          { kind: 'Foto', name: 'Herida pata.jpg', date: '20 sep 2025' },
+          { kind: 'PDF', name: 'Resultado laboratorio.pdf', date: '20 sep 2025' },
+        ];
+
+        weekDays = [
+          { label: 'Lun 21' }, { label: 'Mar 22' }, { label: 'Mié 23' }, { label: 'Jue 24' },
+          { label: 'Vie 25' }, { label: 'Sáb 26' }, { label: 'Dom 27' },
+        ];
+        weekRows = [
+          { vet: 'Dra. Camila Torres', counts: [
+            { label: '6', tagClass: 'tag-accent' }, { label: '5', tagClass: 'tag-accent' }, { label: '7', tagClass: 'tag-accent' },
+            { label: '4', tagClass: 'tag-neutral' }, { label: '8', tagClass: 'tag-accent' }, { label: '2', tagClass: 'tag-neutral' }, { label: '—', tagClass: 'tag-outline' } ] },
+          { vet: 'Dr. Andrés Rueda', counts: [
+            { label: '4', tagClass: 'tag-neutral' }, { label: '6', tagClass: 'tag-accent' }, { label: '5', tagClass: 'tag-neutral' },
+            { label: '6', tagClass: 'tag-accent' }, { label: '5', tagClass: 'tag-neutral' }, { label: '3', tagClass: 'tag-neutral' }, { label: '—', tagClass: 'tag-outline' } ] },
+          { vet: 'Dra. Valentina Nieto', counts: [
+            { label: '3', tagClass: 'tag-neutral' }, { label: '4', tagClass: 'tag-neutral' }, { label: '3', tagClass: 'tag-neutral' },
+            { label: '5', tagClass: 'tag-neutral' }, { label: '4', tagClass: 'tag-neutral' }, { label: '1', tagClass: 'tag-outline' }, { label: '—', tagClass: 'tag-outline' } ] },
+        ];
+
+        reminders = [
+          { patient: 'Luna', tutor: 'María F. Núñez', phone: '+57 300 654 2211', message: 'Refuerzo de rabia', dueAt: '10 ago 2026', statusLabel: 'Pendiente', tagClass: 'tag-accent' },
+          { patient: 'Rocky', tutor: 'Jorge Salamanca', phone: '+57 311 220 7788', message: 'Control post-quirúrgico', dueAt: '30 jul 2026', statusLabel: 'Pendiente', tagClass: 'tag-accent' },
+          { patient: 'Coco', tutor: 'Esteban Rico', phone: '+57 315 902 4410', message: 'Séxtuple vencida', dueAt: '15 jul 2026', statusLabel: 'Pendiente', tagClass: 'tag-accent-2' },
+          { patient: 'Nina', tutor: 'Paola Guzmán', phone: '+57 320 447 6633', message: 'Control post-quirúrgico', dueAt: '05 jul 2026', statusLabel: 'Atendido', tagClass: 'tag-outline' },
+        ];
+
+        users = [
+          { name: 'Camila Torres', email: 'camila.torres@vetclinica.co', role: 'Veterinario', license: 'MVZ-3021', statusLabel: 'Activo', tagClass: 'tag-outline' },
+          { name: 'Andrés Rueda', email: 'andres.rueda@vetclinica.co', role: 'Veterinario', license: 'MVZ-3110', statusLabel: 'Activo', tagClass: 'tag-outline' },
+          { name: 'Valentina Nieto', email: 'valentina.nieto@vetclinica.co', role: 'Veterinario', license: 'MVZ-3288', statusLabel: 'Activo', tagClass: 'tag-outline' },
+          { name: 'Sofía Ramírez', email: 'sofia.ramirez@vetclinica.co', role: 'Recepción', license: '—', statusLabel: 'Activo', tagClass: 'tag-outline' },
+          { name: 'Juan Pablo Díaz', email: 'juanpablo.diaz@vetclinica.co', role: 'Auxiliar', license: '—', statusLabel: 'Inactivo', tagClass: 'tag-neutral' },
+        ];
+
+        auditLogs = [
+          { date: '27 jul 2026 · 09:14', user: 'Camila Torres', action: 'LOGIN', entity: 'User' },
+          { date: '14 jul 2026 · 10:32', user: 'Camila Torres', action: 'CLOSE', entity: 'Consultation #a91f' },
+          { date: '14 jul 2026 · 10:31', user: 'Camila Torres', action: 'CREATE', entity: 'VaccineApplication #7c2e' },
+          { date: '02 feb 2026 · 11:45', user: 'Andrés Rueda', action: 'ADDENDUM', entity: 'Consultation #4d0a' },
+          { date: '20 sep 2025 · 16:02', user: 'Camila Torres', action: 'CREATE', entity: 'Patient — Luna' },
+        ];
+
+        renderVals() {
+          const v = this.state.view;
+          const t = this.state.tab;
+          const tabColor = (on) => on ? 'var(--color-accent-700)' : 'var(--color-neutral-600)';
+          const tabBorder = (on) => on ? 'var(--color-accent-500)' : 'transparent';
+          return {
+            isLogin: !this.state.loggedIn,
+            isApp: this.state.loggedIn,
+            loginError: this.state.loginError,
+            doLogin: this.doLogin,
+            doLogout: this.doLogout,
+            currentUserLabel: 'Camila Torres · Veterinario',
+            goAgenda: this.goAgenda, goSemana: this.goSemana, goAcudientes: this.goAcudientes, goFicha: this.goFicha,
+            goCarnet: this.goCarnet, goConsulta: this.goConsulta, goRecordatorios: this.goRecordatorios, goAdmin: this.goAdmin,
+            agendaCurrent: v === 'agenda' ? 'page' : undefined,
+            semanaCurrent: v === 'semana' ? 'page' : undefined,
+            acudientesCurrent: v === 'acudientes' ? 'page' : undefined,
+            fichaCurrent: v === 'ficha' ? 'page' : undefined,
+            carnetCurrent: v === 'carnet' ? 'page' : undefined,
+            consultaCurrent: v === 'consulta' ? 'page' : undefined,
+            recordatoriosCurrent: v === 'recordatorios' ? 'page' : undefined,
+            adminCurrent: v === 'admin' ? 'page' : undefined,
+            view: {
+              agenda: v === 'agenda', semana: v === 'semana', acudientes: v === 'acudientes', ficha: v === 'ficha',
+              carnet: v === 'carnet', consulta: v === 'consulta', recordatorios: v === 'recordatorios', admin: v === 'admin',
+            },
+            todayLabel: 'Lunes, 27 de julio de 2026',
+            openDialog: this.openDialog, closeDialog: this.closeDialog, dialogOpen: this.state.dialogOpen,
+            openAcudienteDialog: this.openAcudienteDialog, closeAcudienteDialog: this.closeAcudienteDialog, dialogAcudienteOpen: this.state.dialogAcudienteOpen,
+            openMascotaDialog: this.openMascotaDialog, closeMascotaDialog: this.closeMascotaDialog, dialogMascotaOpen: this.state.dialogMascotaOpen,
+            vets: this.vets,
+            searchResults: this.searchResults,
+            consultations: this.consultations,
+            vaccineApplications: this.vaccineApplications,
+            patientAppointments: this.patientAppointments,
+            attachments: this.attachments,
+            weekDays: this.weekDays,
+            weekRows: this.weekRows,
+            reminders: this.reminders,
+            users: this.users,
+            auditLogs: this.auditLogs,
+            tab: { historia: t === 'historia', vacunas: t === 'vacunas', citas: t === 'citas', adjuntos: t === 'adjuntos' },
+            setTabHistoria: this.setTabHistoria, setTabVacunas: this.setTabVacunas, setTabCitas: this.setTabCitas, setTabAdjuntos: this.setTabAdjuntos,
+            tabHistoriaColor: tabColor(t === 'historia'), tabHistoriaBorder: tabBorder(t === 'historia'),
+            tabVacunasColor: tabColor(t === 'vacunas'), tabVacunasBorder: tabBorder(t === 'vacunas'),
+            tabCitasColor: tabColor(t === 'citas'), tabCitasBorder: tabBorder(t === 'citas'),
+            tabAdjuntosColor: tabColor(t === 'adjuntos'), tabAdjuntosBorder: tabBorder(t === 'adjuntos'),
+            adminTab: { usuarios: this.state.adminTab === 'usuarios', config: this.state.adminTab === 'config', bitacora: this.state.adminTab === 'bitacora' },
+            setAdminUsuarios: this.setAdminUsuarios, setAdminConfig: this.setAdminConfig, setAdminBitacora: this.setAdminBitacora,
+            adminUsuariosColor: tabColor(this.state.adminTab === 'usuarios'), adminUsuariosBorder: tabBorder(this.state.adminTab === 'usuarios'),
+            adminConfigColor: tabColor(this.state.adminTab === 'config'), adminConfigBorder: tabBorder(this.state.adminTab === 'config'),
+            adminBitacoraColor: tabColor(this.state.adminTab === 'bitacora'), adminBitacoraBorder: tabBorder(this.state.adminTab === 'bitacora'),
+          };
+        }
+      }
+    </script>
+  </body>
+</html>
