@@ -7,28 +7,8 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { useLogin } from "./use-auth";
-
-function getLoginErrorMessage(error: unknown): string | null {
-  if (!error) {
-    return null;
-  }
-  if (error instanceof Error) {
-    return "No se pudo conectar con el servidor. Intente de nuevo.";
-  }
-  if (typeof error === "object" && "body" in error) {
-    const body = (error as { body?: unknown }).body;
-    if (
-      body &&
-      typeof body === "object" &&
-      "message" in body &&
-      typeof (body as { message?: unknown }).message === "string"
-    ) {
-      return (body as { message: string }).message;
-    }
-  }
-  return "No se pudo iniciar sesión. Intente de nuevo.";
-}
 
 export function LoginForm() {
   const router = useRouter();
@@ -49,7 +29,10 @@ export function LoginForm() {
     );
   };
 
-  const apiErrorMessage = getLoginErrorMessage(login.error);
+  const apiErrorMessage = getApiErrorMessage(
+    login.error,
+    "No se pudo iniciar sesión. Intente de nuevo.",
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-start px-[12vw] py-8">

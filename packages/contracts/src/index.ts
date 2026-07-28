@@ -1,12 +1,15 @@
 import { initContract } from "@ts-rest/core";
 import { authContract } from "./auth";
+import { tutorsContract } from "./tutors";
 
 export * from "./common/errors";
 export * from "./common/roles";
 export * from "./auth";
+export * from "./tutors";
 
 const c = initContract();
 
 export const apiContract = c.router({
   auth: authContract,
+  tutors: tutorsContract,
 });
