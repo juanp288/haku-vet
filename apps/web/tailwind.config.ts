@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 import sharedPreset from "@vetclinic/config/tailwind-preset";
 
 const config: Config = {
@@ -8,7 +9,7 @@ const config: Config = {
     "./src/components/**/*.{ts,tsx}",
     "./src/features/**/*.{ts,tsx}",
   ],
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;
