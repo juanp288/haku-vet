@@ -7,6 +7,7 @@ import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { SearchModule } from "./modules/search/search.module";
 import { TutorsModule } from "./modules/tutors/tutors.module";
 
 @Module({
@@ -19,6 +20,7 @@ import { TutorsModule } from "./modules/tutors/tutors.module";
     AuditModule,
     AuthModule,
     TutorsModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [

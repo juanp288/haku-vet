@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SearchBar } from "@/features/search/search-bar";
 import { TutorFormDialog } from "./tutor-form-dialog";
 import { TutorsTable } from "./tutors-table";
 import { useTutors } from "./use-tutors";
@@ -20,6 +21,10 @@ export function TutorsPage() {
         <h1 className="font-heading text-3xl">Acudientes y mascotas</h1>
         <TutorFormDialog onConflict={setHighlightId} />
       </div>
+
+      <SearchBar />
+
+      <h2 className="mb-3 font-heading text-xl">Todos los acudientes</h2>
 
       {highlightId && (
         <p className="mb-4 text-[13px] text-brand-2-700">

@@ -16,7 +16,11 @@ export class TutorsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(input: CreateTutorInput, userId: string, ip: string): Promise<TutorDto> {
+  async create(
+    input: CreateTutorInput,
+    userId: string,
+    ip: string,
+  ): Promise<TutorDto> {
     const documentNumber = input.documentNumber.trim();
     const existing = await this.tutorsRepository.findByDocument(
       input.documentType,
@@ -75,7 +79,9 @@ export class TutorsService {
       city: tutor.city,
       notes: tutor.notes,
       dataConsent: tutor.dataConsent,
-      dataConsentAt: tutor.dataConsentAt ? tutor.dataConsentAt.toISOString() : null,
+      dataConsentAt: tutor.dataConsentAt
+        ? tutor.dataConsentAt.toISOString()
+        : null,
       isActive: tutor.isActive,
       createdAt: tutor.createdAt.toISOString(),
       updatedAt: tutor.updatedAt.toISOString(),
