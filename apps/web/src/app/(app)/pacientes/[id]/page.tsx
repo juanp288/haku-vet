@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PatientFicha } from "@/features/patients/patient-ficha";
 
 export const metadata: Metadata = {
   title: "Ficha de la mascota — Haku Veterinaria",
@@ -11,12 +12,5 @@ export default async function PatientFichaPage({
 }) {
   const { id } = await params;
 
-  return (
-    <div className="px-6 py-8">
-      <h1 className="mb-1 font-heading text-3xl">Ficha de la mascota</h1>
-      <p className="text-sm opacity-70">
-        La ficha completa (historia B5) llega en una sesión aparte. Paciente: {id}
-      </p>
-    </div>
-  );
+  return <PatientFicha patientId={id} />;
 }

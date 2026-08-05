@@ -1,6 +1,11 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CreatePatientInput } from "@vetclinic/contracts";
+import type { CreatePatientInput, LinkTutorInput } from "@vetclinic/contracts";
 import type { Breed, Patient, Tutor } from "@vetclinic/db";
 import type { AuditService } from "../../common/audit/audit.service";
 import type { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
@@ -12,6 +17,7 @@ import type { PatientsRepository, PatientWithRelations } from "./patients.reposi
 const USER_ID = "user_1";
 const IP = "192.168.1.10";
 const TUTOR_ID = "tutor_1";
+const OTHER_TUTOR_ID = "tutor_2";
 const TODAY = { year: 2026, month: 8, day: 5 };
 
 function buildInput(overrides: Partial<CreatePatientInput> = {}): CreatePatientInput {
@@ -24,6 +30,10 @@ function buildInput(overrides: Partial<CreatePatientInput> = {}): CreatePatientI
     tutorId: TUTOR_ID,
     ...overrides,
   };
+}
+
+function buildLinkInput(overrides: Partial<LinkTutorInput> = {}): LinkTutorInput {
+  return { tutorId: OTHER_TUTOR_ID, isPrimary: false, ...overrides };
 }
 
 function buildTutor(overrides: Partial<Tutor> = {}): Tutor {
@@ -89,11 +99,36 @@ function buildPatientWithRelations(
         isPrimary: true,
         relationship: null,
         createdAt: new Date("2026-08-05T00:00:00.000Z"),
-        tutor: { firstName: "María Fernanda", lastName: "Núñez Rojas" },
+        tutor: { firstName: "María Fernanda", lastName: "Núñez Rojas", phone: "+573006542211" },
       },
     ],
     ...overrides,
   };
+}
+
+function buildTwoTutorPatient(): PatientWithRelations {
+  return buildPatientWithRelations({
+    tutors: [
+      {
+        id: "pt_1",
+        patientId: "patient_1",
+        tutorId: TUTOR_ID,
+        isPrimary: true,
+        relationship: null,
+        createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        tutor: { firstName: "María Fernanda", lastName: "Núñez Rojas", phone: "+573006542211" },
+      },
+      {
+        id: "pt_2",
+        patientId: "patient_1",
+        tutorId: OTHER_TUTOR_ID,
+        isPrimary: false,
+        relationship: "cuidador",
+        createdAt: new Date("2026-08-02T00:00:00.000Z"),
+        tutor: { firstName: "Jorge", lastName: "Salamanca", phone: "3112207788" },
+      },
+    ],
+  });
 }
 
 describe("PatientsService", () => {
@@ -101,6 +136,10 @@ describe("PatientsService", () => {
     findByMicrochip: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     findAllActive: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    linkTutor: ReturnType<typeof vi.fn>;
+    setPrimaryTutor: ReturnType<typeof vi.fn>;
+    unlinkTutor: ReturnType<typeof vi.fn>;
   };
   let tutorsRepository: { findById: ReturnType<typeof vi.fn> };
   let breedsRepository: { findById: ReturnType<typeof vi.fn> };
@@ -113,6 +152,10 @@ describe("PatientsService", () => {
       findByMicrochip: vi.fn(),
       create: vi.fn(),
       findAllActive: vi.fn(),
+      findById: vi.fn().mockResolvedValue(buildPatientWithRelations()),
+      linkTutor: vi.fn(),
+      setPrimaryTutor: vi.fn(),
+      unlinkTutor: vi.fn(),
     };
     tutorsRepository = { findById: vi.fn().mockResolvedValue(buildTutor()) };
     breedsRepository = { findById: vi.fn() };
@@ -140,8 +183,15 @@ describe("PatientsService", () => {
       );
 
       expect(result.id).toBe("patient_1");
-      expect(result.primaryTutorId).toBe(TUTOR_ID);
-      expect(result.primaryTutorName).toBe("María Fernanda Núñez Rojas");
+      expect(result.tutors).toEqual([
+        {
+          tutorId: TUTOR_ID,
+          tutorName: "María Fernanda Núñez Rojas",
+          tutorPhone: "+573006542211",
+          isPrimary: true,
+          relationship: null,
+        },
+      ]);
       expect(result.ageLabel).toBe("3 años 1 mes");
       expect(patientsRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Luna", microchip: null }),
@@ -243,8 +293,131 @@ describe("PatientsService", () => {
       const result = await service.findAll();
 
       expect(result).toHaveLength(1);
-      expect(result[0]?.primaryTutorName).toBe("María Fernanda Núñez Rojas");
+      expect(result[0]?.tutors[0]?.tutorName).toBe("María Fernanda Núñez Rojas");
       expect(clinicTimeService.today).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("findById", () => {
+    it("devuelve la mascota con todos sus acudientes vinculados", async () => {
+      patientsRepository.findById.mockResolvedValue(buildTwoTutorPatient());
+
+      const result = await service.findById("patient_1");
+
+      expect(result.tutors).toHaveLength(2);
+      expect(result.tutors.filter((t) => t.isPrimary)).toHaveLength(1);
+    });
+
+    it("rechaza si la mascota no existe", async () => {
+      patientsRepository.findById.mockResolvedValue(null);
+
+      await expect(service.findById("no-existe")).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("linkTutor", () => {
+    it("vincula un acudiente adicional sin tocar al principal", async () => {
+      patientsRepository.linkTutor.mockResolvedValue({
+        outcome: "ok",
+        patient: buildTwoTutorPatient(),
+      });
+
+      const result = await service.linkTutor(
+        "patient_1",
+        buildLinkInput({ relationship: "cuidador" }),
+        USER_ID,
+        IP,
+      );
+
+      expect(patientsRepository.linkTutor).toHaveBeenCalledWith(
+        "patient_1",
+        OTHER_TUTOR_ID,
+        "cuidador",
+        false,
+      );
+      expect(result.tutors).toHaveLength(2);
+      expect(result.tutors.find((t) => t.isPrimary)?.tutorId).toBe(TUTOR_ID);
+    });
+
+    it("rechaza si la mascota no existe", async () => {
+      patientsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.linkTutor("no-existe", buildLinkInput(), USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
+      expect(patientsRepository.linkTutor).not.toHaveBeenCalled();
+    });
+
+    it("rechaza si el acudiente a vincular no existe", async () => {
+      tutorsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.linkTutor("patient_1", buildLinkInput(), USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
+      expect(patientsRepository.linkTutor).not.toHaveBeenCalled();
+    });
+
+    it("rechaza un acudiente que ya está vinculado a esta mascota", async () => {
+      patientsRepository.linkTutor.mockResolvedValue({ outcome: "already_linked" });
+
+      await expect(
+        service.linkTutor("patient_1", buildLinkInput(), USER_ID, IP),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe("setPrimaryTutor", () => {
+    it("marca como principal al acudiente indicado", async () => {
+      const promoted = buildTwoTutorPatient();
+      const primaryLink = promoted.tutors[0];
+      const secondaryLink = promoted.tutors[1];
+      if (!primaryLink || !secondaryLink) {
+        throw new Error("fixture inválido");
+      }
+      primaryLink.isPrimary = false;
+      secondaryLink.isPrimary = true;
+      patientsRepository.setPrimaryTutor.mockResolvedValue({ outcome: "ok", patient: promoted });
+
+      const result = await service.setPrimaryTutor("patient_1", OTHER_TUTOR_ID, USER_ID, IP);
+
+      expect(result.tutors.find((t) => t.tutorId === OTHER_TUTOR_ID)?.isPrimary).toBe(true);
+      expect(result.tutors.find((t) => t.tutorId === TUTOR_ID)?.isPrimary).toBe(false);
+    });
+
+    it("rechaza si el acudiente no está vinculado a la mascota", async () => {
+      patientsRepository.setPrimaryTutor.mockResolvedValue({ outcome: "not_linked" });
+
+      await expect(
+        service.setPrimaryTutor("patient_1", "tutor-ajeno", USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("unlinkTutor", () => {
+    it("desvincula un acudiente secundario y el principal sigue siéndolo (caso límite #2)", async () => {
+      const afterUnlink = buildPatientWithRelations();
+      patientsRepository.unlinkTutor.mockResolvedValue({ outcome: "ok", patient: afterUnlink });
+
+      const result = await service.unlinkTutor("patient_1", OTHER_TUTOR_ID, USER_ID, IP);
+
+      expect(result.tutors).toHaveLength(1);
+      expect(result.tutors[0]?.isPrimary).toBe(true);
+    });
+
+    it("rechaza desvincular al único acudiente de la mascota (caso límite #3)", async () => {
+      patientsRepository.unlinkTutor.mockResolvedValue({ outcome: "last_tutor" });
+
+      await expect(
+        service.unlinkTutor("patient_1", TUTOR_ID, USER_ID, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it("rechaza si el acudiente no está vinculado a la mascota", async () => {
+      patientsRepository.unlinkTutor.mockResolvedValue({ outcome: "not_linked" });
+
+      await expect(
+        service.unlinkTutor("patient_1", "tutor-ajeno", USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

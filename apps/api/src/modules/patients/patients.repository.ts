@@ -16,13 +16,12 @@ export interface CreatePatientData {
   microchip: string | null;
 }
 
-/** Trae la raza (nombre) y el acudiente principal, lo único que necesita el DTO. */
+/** Trae la raza (nombre) y todos los acudientes vinculados, más antiguo primero. */
 const WITH_RELATIONS_INCLUDE = {
   breed: { select: { name: true } },
   tutors: {
-    where: { isPrimary: true },
-    take: 1,
-    include: { tutor: { select: { firstName: true, lastName: true } } },
+    orderBy: { createdAt: "asc" },
+    include: { tutor: { select: { firstName: true, lastName: true, phone: true } } },
   },
 } satisfies Prisma.PatientInclude;
 
@@ -30,12 +29,32 @@ export type PatientWithRelations = Prisma.PatientGetPayload<{
   include: typeof WITH_RELATIONS_INCLUDE;
 }>;
 
+export type LinkTutorResult =
+  | { outcome: "ok"; patient: PatientWithRelations }
+  | { outcome: "already_linked" };
+
+export type SetPrimaryTutorResult =
+  | { outcome: "ok"; patient: PatientWithRelations }
+  | { outcome: "not_linked" };
+
+export type UnlinkTutorResult =
+  | { outcome: "ok"; patient: PatientWithRelations }
+  | { outcome: "not_linked" }
+  | { outcome: "last_tutor" };
+
 @Injectable()
 export class PatientsRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   findByMicrochip(microchip: string): Promise<Patient | null> {
     return this.prisma.patient.findUnique({ where: { microchip } });
+  }
+
+  findById(id: string): Promise<PatientWithRelations | null> {
+    return this.prisma.patient.findFirst({
+      where: { id, isActive: true },
+      include: WITH_RELATIONS_INCLUDE,
+    });
   }
 
   /**
@@ -61,16 +80,121 @@ export class PatientsRepository {
       return patient;
     });
 
-    return this.prisma.patient.findUniqueOrThrow({
-      where: { id: created.id },
-      include: WITH_RELATIONS_INCLUDE,
-    });
+    return this.findByIdOrThrow(created.id);
   }
 
   findAllActive(): Promise<PatientWithRelations[]> {
     return this.prisma.patient.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
+      include: WITH_RELATIONS_INCLUDE,
+    });
+  }
+
+  /** B4: agrega un acudiente adicional. Si isPrimary, desmarca al anterior en la misma transacción (RN-08). */
+  async linkTutor(
+    patientId: string,
+    tutorId: string,
+    relationship: string | null,
+    isPrimary: boolean,
+  ): Promise<LinkTutorResult> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.patientTutor.findUnique({
+        where: { patientId_tutorId: { patientId, tutorId } },
+      });
+      if (existing) {
+        return "already_linked" as const;
+      }
+
+      if (isPrimary) {
+        await tx.patientTutor.updateMany({
+          where: { patientId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+
+      await tx.patientTutor.create({
+        data: { patientId, tutorId, isPrimary, relationship },
+      });
+
+      return "ok" as const;
+    });
+
+    if (outcome === "already_linked") {
+      return { outcome };
+    }
+    return { outcome: "ok", patient: await this.findByIdOrThrow(patientId) };
+  }
+
+  /** B4: marca un acudiente ya vinculado como principal; el anterior deja de serlo (RN-08). */
+  async setPrimaryTutor(patientId: string, tutorId: string): Promise<SetPrimaryTutorResult> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const link = await tx.patientTutor.findUnique({
+        where: { patientId_tutorId: { patientId, tutorId } },
+      });
+      if (!link) {
+        return "not_linked" as const;
+      }
+      if (!link.isPrimary) {
+        await tx.patientTutor.updateMany({
+          where: { patientId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+        await tx.patientTutor.update({ where: { id: link.id }, data: { isPrimary: true } });
+      }
+      return "ok" as const;
+    });
+
+    if (outcome === "not_linked") {
+      return { outcome };
+    }
+    return { outcome: "ok", patient: await this.findByIdOrThrow(patientId) };
+  }
+
+  /**
+   * B4: desvincula un acudiente. Rechaza dejar la mascota sin ninguno (caso
+   * límite #3 del doc de reglas de negocio) y, si el desvinculado era el
+   * principal, promueve automáticamente al vinculado más antiguo que quede
+   * para no romper RN-08 (caso límite #2: sigue habiendo principal).
+   */
+  async unlinkTutor(patientId: string, tutorId: string): Promise<UnlinkTutorResult> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const link = await tx.patientTutor.findUnique({
+        where: { patientId_tutorId: { patientId, tutorId } },
+      });
+      if (!link) {
+        return "not_linked" as const;
+      }
+
+      const totalLinked = await tx.patientTutor.count({ where: { patientId } });
+      if (totalLinked <= 1) {
+        return "last_tutor" as const;
+      }
+
+      await tx.patientTutor.delete({ where: { id: link.id } });
+
+      if (link.isPrimary) {
+        const next = await tx.patientTutor.findFirst({
+          where: { patientId },
+          orderBy: { createdAt: "asc" },
+        });
+        if (next) {
+          await tx.patientTutor.update({ where: { id: next.id }, data: { isPrimary: true } });
+        }
+      }
+
+      return "ok" as const;
+    });
+
+    if (outcome !== "ok") {
+      return { outcome };
+    }
+    return { outcome: "ok", patient: await this.findByIdOrThrow(patientId) };
+  }
+
+  private findByIdOrThrow(id: string): Promise<PatientWithRelations> {
+    return this.prisma.patient.findUniqueOrThrow({
+      where: { id },
       include: WITH_RELATIONS_INCLUDE,
     });
   }
