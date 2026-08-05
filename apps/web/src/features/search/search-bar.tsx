@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SPECIES_LABELS } from "@/lib/species-labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
-import { SPECIES_LABELS } from "./species-labels";
 import { useSearch } from "./use-search";
 
 export function SearchBar() {

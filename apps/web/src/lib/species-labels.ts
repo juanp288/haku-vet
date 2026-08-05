@@ -8,3 +8,5 @@ export const SPECIES_LABELS: Record<Species, string> = {
   REPTIL: "Reptil",
   OTRO: "Otro",
 };
+
+export const SPECIES_OPTIONS: Species[] = ["CANINO", "FELINO", "AVE", "ROEDOR", "REPTIL", "OTRO"];

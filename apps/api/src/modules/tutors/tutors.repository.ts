@@ -37,6 +37,10 @@ export class TutorsRepository {
     });
   }
 
+  findById(id: string): Promise<Tutor | null> {
+    return this.prisma.tutor.findUnique({ where: { id } });
+  }
+
   findAllActive(): Promise<Tutor[]> {
     return this.prisma.tutor.findMany({
       where: { isActive: true },

@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PatientFormDialog } from "@/features/patients/patient-form-dialog";
 import { DOCUMENT_TYPE_LABELS } from "./document-type-labels";
 
 function formatDate(value: string): string {
@@ -40,6 +41,7 @@ export function TutorsTable({ tutors, highlightId }: TutorsTableProps) {
           <TableHead>Correo</TableHead>
           <TableHead>Autorización</TableHead>
           <TableHead>Registrado</TableHead>
+          <TableHead />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -61,6 +63,12 @@ export function TutorsTable({ tutors, highlightId }: TutorsTableProps) {
             </TableCell>
             <TableCell className="text-muted-foreground">
               {formatDate(tutor.createdAt)}
+            </TableCell>
+            <TableCell>
+              <PatientFormDialog
+                tutorId={tutor.id}
+                tutorName={`${tutor.firstName} ${tutor.lastName}`}
+              />
             </TableCell>
           </TableRow>
         ))}
