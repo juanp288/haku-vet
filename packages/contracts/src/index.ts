@@ -13,6 +13,7 @@ export * from "./auth";
 export * from "./tutors";
 export * from "./search";
 export * from "./breeds";
+export * from "./consultations";
 export * from "./patients";
 
 const c = initContract();

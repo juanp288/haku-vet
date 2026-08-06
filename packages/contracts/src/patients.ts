@@ -1,5 +1,9 @@
 import { initContract } from "@ts-rest/core";
 import { z } from "zod";
+import {
+  consultationsPageSchema,
+  listConsultationsQuerySchema,
+} from "./consultations";
 import { errorSchema } from "./common/errors";
 import { sexSchema } from "./common/sex";
 import { speciesSchema } from "./common/species";
@@ -59,7 +63,14 @@ export const patientSchema = z.object({
   ageLabel: z.string().nullable(),
   color: z.string().nullable(),
   microchip: z.string().nullable(),
+  photoPath: z.string().nullable(),
+  allergies: z.string().nullable(),
+  chronicConditions: z.string().nullable(),
+  clinicalAlert: z.string().nullable(),
+  /** Última consulta CERRADA con peso registrado — null hasta que D1/D2 existan. */
+  latestWeightKg: z.number().nullable(),
   isDeceased: z.boolean(),
+  deceasedAt: z.string().nullable(),
   isActive: z.boolean(),
   tutors: z.array(patientTutorLinkSchema),
   createdAt: z.string(),
@@ -135,6 +146,22 @@ export const patientsContract = c.router({
       200: patientSchema,
       404: errorSchema,
       422: errorSchema,
+    },
+  },
+  /**
+   * B5: últimas consultas en orden cronológico inverso, paginadas de a 10.
+   * RECEPCION no tiene este endpoint en sus @Roles (RN-18, "regla clave":
+   * no ve la historia clínica). AUXILIAR sí, pero el service le redacta
+   * reason/diagnosis y solo deja los signos vitales.
+   */
+  listConsultations: {
+    method: "GET",
+    path: "/patients/:id/consultations",
+    pathParams: patientIdParamsSchema,
+    query: listConsultationsQuerySchema,
+    responses: {
+      200: consultationsPageSchema,
+      404: errorSchema,
     },
   },
 });

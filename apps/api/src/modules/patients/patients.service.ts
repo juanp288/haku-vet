@@ -6,16 +6,24 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type {
+  ConsultationsPage,
   CreatePatientInput,
   LinkTutorInput,
+  ListConsultationsQuery,
   Patient as PatientDto,
 } from "@vetclinic/contracts";
+import { CONSULTATIONS_PAGE_SIZE } from "@vetclinic/contracts";
+import type { Role } from "@vetclinic/db";
 import { AuditService } from "../../common/audit/audit.service";
 import { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
 import { formatAgeLabel, getDatePartsUTC, type DateParts } from "../../common/clinic-time/clinic-time.util";
 import { BreedsRepository } from "../breeds/breeds.repository";
 import { TutorsRepository } from "../tutors/tutors.repository";
-import { PatientsRepository, type PatientWithRelations } from "./patients.repository";
+import {
+  PatientsRepository,
+  type ConsultationRow,
+  type PatientWithRelations,
+} from "./patients.repository";
 
 function normalizeOptionalText(value: string | undefined): string | null {
   const trimmed = value?.trim();
@@ -176,6 +184,55 @@ export class PatientsService {
     return this.toDto(result.patient, today);
   }
 
+  /**
+   * B5: últimas consultas en orden cronológico inverso, paginadas de a 10.
+   * RN-18 "regla clave" — RECEPCION no tiene este endpoint en @Roles, así
+   * que nunca llega aquí. AUXILIAR sí llega, pero solo ve signos vitales:
+   * se redactan reason/diagnosis antes de devolver la fila.
+   */
+  async listConsultations(
+    patientId: string,
+    query: ListConsultationsQuery,
+    user: { sub: string; role: Role },
+  ): Promise<ConsultationsPage> {
+    await this.getExistingPatient(patientId);
+
+    const { items, total } = await this.patientsRepository.findConsultationsPage(
+      patientId,
+      user.sub,
+      user.role === "ADMIN",
+      query.page,
+      CONSULTATIONS_PAGE_SIZE,
+    );
+
+    const onlyVitals = user.role === "AUXILIAR";
+    return {
+      items: items.map((row) => this.toConsultationSummary(row, onlyVitals)),
+      page: query.page,
+      pageSize: CONSULTATIONS_PAGE_SIZE,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / CONSULTATIONS_PAGE_SIZE)),
+    };
+  }
+
+  private toConsultationSummary(
+    row: ConsultationRow,
+    onlyVitals: boolean,
+  ): ConsultationsPage["items"][number] {
+    return {
+      id: row.id,
+      occurredAt: row.occurredAt.toISOString(),
+      status: row.status,
+      vetName: row.vet.fullName,
+      reason: onlyVitals ? null : row.reason,
+      diagnosis: onlyVitals ? null : row.diagnosis,
+      weightKg: row.weightKg ? row.weightKg.toNumber() : null,
+      temperatureC: row.temperatureC ? row.temperatureC.toNumber() : null,
+      heartRate: row.heartRate,
+      respiratoryRate: row.respiratoryRate,
+    };
+  }
+
   private async getExistingPatient(id: string): Promise<PatientWithRelations> {
     const patient = await this.patientsRepository.findById(id);
     if (!patient) {
@@ -212,7 +269,15 @@ export class PatientsService {
         : null,
       color: patient.color,
       microchip: patient.microchip,
+      photoPath: patient.photoPath,
+      allergies: patient.allergies,
+      chronicConditions: patient.chronicConditions,
+      clinicalAlert: patient.clinicalAlert,
+      latestWeightKg: patient.consultations[0]?.weightKg
+        ? patient.consultations[0].weightKg.toNumber()
+        : null,
       isDeceased: patient.isDeceased,
+      deceasedAt: patient.deceasedAt ? patient.deceasedAt.toISOString() : null,
       isActive: patient.isActive,
       tutors: patient.tutors.map((link) => ({
         tutorId: link.tutorId,

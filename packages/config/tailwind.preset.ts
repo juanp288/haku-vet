@@ -1,16 +1,18 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Preset compartido con los tokens del diseño importado desde Claude Design
- * (Sistema Veterinario.dc.html / _ds/styles.css). Los valores reales viven
- * como custom properties en apps/web/src/app/globals.css; este preset solo
- * los expone como utilidades de Tailwind.
+ * Preset compartido con los tokens del diseño "Kahu" importado desde Claude
+ * Design (Kahu - Sistema.dc.html, proyecto 5c86d44d-e369-49b4-9b46-0f40b5ab1830).
+ * Los valores reales viven como custom properties en apps/web/src/app/globals.css;
+ * este preset solo los expone como utilidades de Tailwind.
  *
- * `brand` / `brand-2` son las rampas de marca (cian / magenta) del mockup.
- * Se llaman así — no `accent` — porque shadcn/ui reserva `accent` para su
+ * `brand` / `brand-2` son las rampas de marca (azul / verde) del mockup. Se
+ * llaman así — no `accent` — porque shadcn/ui reserva `accent` para su
  * propio rol semántico (fondo de hover neutro) en los componentes que se
  * instalan sin modificar; usar el mismo nombre para dos cosas distintas
- * rompería esos componentes.
+ * rompería esos componentes. `brand-2` (verde) es un acento secundario/
+ * positivo, no el color de error — para eso está `destructive` (shadcn),
+ * mapeado a un tono danger (magenta) independiente de las dos rampas de marca.
  */
 const tailwindPreset = {
   darkMode: "class",
@@ -44,6 +46,16 @@ const tailwindPreset = {
           700: "var(--color-accent-2-700)",
           800: "var(--color-accent-2-800)",
           900: "var(--color-accent-2-900)",
+        },
+        danger: {
+          DEFAULT: "var(--color-danger)",
+          100: "var(--color-danger-100)",
+          700: "var(--color-danger-700)",
+        },
+        warning: {
+          DEFAULT: "var(--color-warning)",
+          100: "var(--color-warning-100)",
+          700: "var(--color-warning-700)",
         },
         neutral: {
           100: "var(--color-neutral-100)",

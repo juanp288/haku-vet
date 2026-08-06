@@ -6,8 +6,17 @@ import { tsr } from "@/lib/api-client";
 export const PATIENTS_QUERY_KEY = ["patients"];
 export const patientQueryKey = (patientId: string) => ["patients", patientId];
 
+export function usePatients() {
+  return tsr.patients.list.useQuery({ queryKey: PATIENTS_QUERY_KEY });
+}
+
 export function useCreatePatient() {
-  return tsr.patients.create.useMutation();
+  const queryClient = useQueryClient();
+  return tsr.patients.create.useMutation({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PATIENTS_QUERY_KEY });
+    },
+  });
 }
 
 export function usePatient(patientId: string) {
@@ -17,13 +26,26 @@ export function usePatient(patientId: string) {
   });
 }
 
-function useInvalidatePatient(patientId: string) {
+/** B5: historia clínica paginada — vacía hasta que D1 exista, pero la consulta ya es real. */
+export function usePatientConsultations(patientId: string, page: number) {
+  return tsr.patients.listConsultations.useQuery({
+    queryKey: [...patientQueryKey(patientId), "consultations", page],
+    queryData: { params: { id: patientId }, query: { page } },
+  });
+}
+
+function useInvalidatePatientQueries(patientId: string) {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: patientQueryKey(patientId) });
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: patientQueryKey(patientId) }),
+      queryClient.invalidateQueries({ queryKey: PATIENTS_QUERY_KEY }),
+    ]);
+  };
 }
 
 export function useLinkTutor(patientId: string) {
-  const invalidate = useInvalidatePatient(patientId);
+  const invalidate = useInvalidatePatientQueries(patientId);
   return tsr.patients.linkTutor.useMutation({
     onSuccess: async () => {
       await invalidate();
@@ -32,7 +54,7 @@ export function useLinkTutor(patientId: string) {
 }
 
 export function useSetPrimaryTutor(patientId: string) {
-  const invalidate = useInvalidatePatient(patientId);
+  const invalidate = useInvalidatePatientQueries(patientId);
   return tsr.patients.setPrimaryTutor.useMutation({
     onSuccess: async () => {
       await invalidate();
@@ -41,7 +63,7 @@ export function useSetPrimaryTutor(patientId: string) {
 }
 
 export function useUnlinkTutor(patientId: string) {
-  const invalidate = useInvalidatePatient(patientId);
+  const invalidate = useInvalidatePatientQueries(patientId);
   return tsr.patients.unlinkTutor.useMutation({
     onSuccess: async () => {
       await invalidate();

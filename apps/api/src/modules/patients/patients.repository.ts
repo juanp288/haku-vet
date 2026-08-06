@@ -16,12 +16,23 @@ export interface CreatePatientData {
   microchip: string | null;
 }
 
-/** Trae la raza (nombre) y todos los acudientes vinculados, más antiguo primero. */
+/**
+ * Trae la raza (nombre), todos los acudientes vinculados (más antiguo
+ * primero) y la última consulta CERRADA con peso (B5: "peso más reciente"
+ * del encabezado). Esta última siempre viene vacía hasta que D1/D2 existan
+ * — la consulta es real, solo que hoy no hay forma de crear consultas.
+ */
 const WITH_RELATIONS_INCLUDE = {
   breed: { select: { name: true } },
   tutors: {
     orderBy: { createdAt: "asc" },
     include: { tutor: { select: { firstName: true, lastName: true, phone: true } } },
+  },
+  consultations: {
+    where: { status: "CERRADA", weightKg: { not: null } },
+    orderBy: { closedAt: "desc" },
+    take: 1,
+    select: { weightKg: true },
   },
 } satisfies Prisma.PatientInclude;
 
@@ -41,6 +52,19 @@ export type UnlinkTutorResult =
   | { outcome: "ok"; patient: PatientWithRelations }
   | { outcome: "not_linked" }
   | { outcome: "last_tutor" };
+
+const CONSULTATION_ROW_INCLUDE = {
+  vet: { select: { fullName: true } },
+} satisfies Prisma.ConsultationInclude;
+
+export type ConsultationRow = Prisma.ConsultationGetPayload<{
+  include: typeof CONSULTATION_ROW_INCLUDE;
+}>;
+
+export interface ConsultationsPageResult {
+  items: ConsultationRow[];
+  total: number;
+}
 
 @Injectable()
 export class PatientsRepository {
@@ -190,6 +214,41 @@ export class PatientsRepository {
       return { outcome };
     }
     return { outcome: "ok", patient: await this.findByIdOrThrow(patientId) };
+  }
+
+  /**
+   * B5: últimas consultas, orden cronológico inverso, paginadas. RN-07: un
+   * BORRADOR solo lo ve su autor (vetId) o ADMIN — nunca otro veterinario
+   * ni AUXILIAR. La redacción de campos para AUXILIAR (RN-18, solo signos
+   * vitales) vive en el service, no aquí: el repository solo filtra
+   * visibilidad de filas, no columnas.
+   */
+  async findConsultationsPage(
+    patientId: string,
+    currentUserId: string,
+    isAdmin: boolean,
+    page: number,
+    pageSize: number,
+  ): Promise<ConsultationsPageResult> {
+    const where: Prisma.ConsultationWhereInput = {
+      patientId,
+      ...(isAdmin
+        ? {}
+        : { OR: [{ status: "CERRADA" }, { status: "BORRADOR", vetId: currentUserId }] }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.consultation.findMany({
+        where,
+        orderBy: { occurredAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: CONSULTATION_ROW_INCLUDE,
+      }),
+      this.prisma.consultation.count({ where }),
+    ]);
+
+    return { items, total };
   }
 
   private findByIdOrThrow(id: string): Promise<PatientWithRelations> {

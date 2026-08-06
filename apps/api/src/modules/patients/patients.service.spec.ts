@@ -6,13 +6,17 @@ import {
 } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePatientInput, LinkTutorInput } from "@vetclinic/contracts";
-import type { Breed, Patient, Tutor } from "@vetclinic/db";
+import { Prisma, type Breed, type Patient, type Tutor } from "@vetclinic/db";
 import type { AuditService } from "../../common/audit/audit.service";
 import type { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
 import type { BreedsRepository } from "../breeds/breeds.repository";
 import type { TutorsRepository } from "../tutors/tutors.repository";
 import { PatientsService } from "./patients.service";
-import type { PatientsRepository, PatientWithRelations } from "./patients.repository";
+import type {
+  ConsultationRow,
+  PatientsRepository,
+  PatientWithRelations,
+} from "./patients.repository";
 
 const USER_ID = "user_1";
 const IP = "192.168.1.10";
@@ -62,6 +66,38 @@ function buildBreed(overrides: Partial<Breed> = {}): Breed {
   return { id: "breed_1", name: "Labrador", species: "CANINO", isActive: true, ...overrides };
 }
 
+function buildConsultationRow(overrides: Partial<ConsultationRow> = {}): ConsultationRow {
+  return {
+    id: "consultation_1",
+    patientId: "patient_1",
+    appointmentId: null,
+    vetId: "vet_1",
+    occurredAt: new Date("2026-07-14T14:00:00.000Z"),
+    status: "CERRADA",
+    closedAt: new Date("2026-07-14T14:20:00.000Z"),
+    reason: "Control de vacunación",
+    subjective: null,
+    objective: null,
+    assessment: null,
+    plan: null,
+    diagnosis: "Paciente sana",
+    treatment: null,
+    prescription: null,
+    weightKg: new Prisma.Decimal("22.6"),
+    temperatureC: new Prisma.Decimal("38.4"),
+    heartRate: 96,
+    respiratoryRate: 24,
+    bodyConditionScore: null,
+    mucousMembranes: null,
+    capillaryRefill: null,
+    nextControlAt: null,
+    createdAt: new Date("2026-07-14T14:00:00.000Z"),
+    updatedAt: new Date("2026-07-14T14:20:00.000Z"),
+    vet: { fullName: "Dra. Camila Torres" },
+    ...overrides,
+  };
+}
+
 function buildPatientWithRelations(
   overrides: Partial<PatientWithRelations> = {},
 ): PatientWithRelations {
@@ -102,6 +138,7 @@ function buildPatientWithRelations(
         tutor: { firstName: "María Fernanda", lastName: "Núñez Rojas", phone: "+573006542211" },
       },
     ],
+    consultations: [],
     ...overrides,
   };
 }
@@ -140,6 +177,7 @@ describe("PatientsService", () => {
     linkTutor: ReturnType<typeof vi.fn>;
     setPrimaryTutor: ReturnType<typeof vi.fn>;
     unlinkTutor: ReturnType<typeof vi.fn>;
+    findConsultationsPage: ReturnType<typeof vi.fn>;
   };
   let tutorsRepository: { findById: ReturnType<typeof vi.fn> };
   let breedsRepository: { findById: ReturnType<typeof vi.fn> };
@@ -156,6 +194,7 @@ describe("PatientsService", () => {
       linkTutor: vi.fn(),
       setPrimaryTutor: vi.fn(),
       unlinkTutor: vi.fn(),
+      findConsultationsPage: vi.fn().mockResolvedValue({ items: [], total: 0 }),
     };
     tutorsRepository = { findById: vi.fn().mockResolvedValue(buildTutor()) };
     breedsRepository = { findById: vi.fn() };
@@ -313,6 +352,28 @@ describe("PatientsService", () => {
 
       await expect(service.findById("no-existe")).rejects.toThrow(NotFoundException);
     });
+
+    it("B5: expone el peso de la última consulta cerrada como latestWeightKg", async () => {
+      patientsRepository.findById.mockResolvedValue(
+        buildPatientWithRelations({
+          consultations: [{ weightKg: new Prisma.Decimal("22.6") }],
+        }),
+      );
+
+      const result = await service.findById("patient_1");
+
+      expect(result.latestWeightKg).toBe(22.6);
+    });
+
+    it("sin consultas cerradas, latestWeightKg es null", async () => {
+      patientsRepository.findById.mockResolvedValue(
+        buildPatientWithRelations({ consultations: [] }),
+      );
+
+      const result = await service.findById("patient_1");
+
+      expect(result.latestWeightKg).toBeNull();
+    });
   });
 
   describe("linkTutor", () => {
@@ -418,6 +479,112 @@ describe("PatientsService", () => {
       await expect(
         service.unlinkTutor("patient_1", "tutor-ajeno", USER_ID, IP),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("listConsultations", () => {
+    it("devuelve las consultas con motivo y diagnóstico completos para VETERINARIO", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [buildConsultationRow()],
+        total: 1,
+      });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({
+        reason: "Control de vacunación",
+        diagnosis: "Paciente sana",
+        weightKg: 22.6,
+        temperatureC: 38.4,
+        heartRate: 96,
+        vetName: "Dra. Camila Torres",
+      });
+      expect(result.page).toBe(1);
+      expect(result.pageSize).toBe(10);
+      expect(result.total).toBe(1);
+      expect(result.totalPages).toBe(1);
+    });
+
+    it("RN-18: redacta motivo y diagnóstico para AUXILIAR, deja los signos vitales", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [buildConsultationRow()],
+        total: 1,
+      });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "aux_1", role: "AUXILIAR" },
+      );
+
+      expect(result.items[0]?.reason).toBeNull();
+      expect(result.items[0]?.diagnosis).toBeNull();
+      expect(result.items[0]?.weightKg).toBe(22.6);
+      expect(result.items[0]?.temperatureC).toBe(38.4);
+      expect(result.items[0]?.heartRate).toBe(96);
+    });
+
+    it("le pasa isAdmin=true al repositorio solo cuando el rol es ADMIN (RN-07)", async () => {
+      await service.listConsultations("patient_1", { page: 1 }, { sub: "admin_1", role: "ADMIN" });
+      expect(patientsRepository.findConsultationsPage).toHaveBeenCalledWith(
+        "patient_1",
+        "admin_1",
+        true,
+        1,
+        10,
+      );
+
+      await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+      expect(patientsRepository.findConsultationsPage).toHaveBeenCalledWith(
+        "patient_1",
+        "vet_1",
+        false,
+        1,
+        10,
+      );
+    });
+
+    it("calcula totalPages redondeando hacia arriba", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({ items: [], total: 25 });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 3 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(result.totalPages).toBe(3);
+      expect(result.page).toBe(3);
+    });
+
+    it("sin consultas devuelve totalPages en 1, no en 0", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({ items: [], total: 0 });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(result.totalPages).toBe(1);
+    });
+
+    it("rechaza si la mascota no existe", async () => {
+      patientsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.listConsultations("no-existe", { page: 1 }, { sub: "vet_1", role: "VETERINARIO" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(patientsRepository.findConsultationsPage).not.toHaveBeenCalled();
     });
   });
 });
