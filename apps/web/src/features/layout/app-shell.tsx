@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useCurrentUser, useSessionRefresh } from "@/features/auth/use-auth";
+import { AppHeader } from "./app-header";
 import { AppNav } from "./app-nav";
 
 /** Envuelve todas las rutas autenticadas: sesión, nav, refresco silencioso. */
@@ -22,9 +23,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div>
+    <div className="flex min-h-screen items-stretch">
       <AppNav />
-      {children}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AppHeader />
+        <main className="flex-1">{children}</main>
+      </div>
     </div>
   );
 }

@@ -30,5 +30,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // El negative lookahead también excluye cualquier ruta con extensión de
+  // archivo (logo.jpeg, icon.jpeg, futuros assets en public/): sin esto,
+  // una sesión inexistente redirige el <img> a la página de login y el
+  // navegador recibe HTML donde esperaba una imagen.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

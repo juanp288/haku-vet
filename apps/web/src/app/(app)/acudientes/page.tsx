@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { TutorsPage } from "@/features/tutors/tutors-page";
 
 export const metadata: Metadata = {
-  title: "Acudientes — Haku Veterinaria",
+  title: "Acudientes — Kahu",
 };
 
 export default function AcudientesPage() {

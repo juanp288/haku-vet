@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Agenda — Haku Veterinaria",
+  title: "Agenda — Kahu",
 };
 
 export default function AgendaPage() {

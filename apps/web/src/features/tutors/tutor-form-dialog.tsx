@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { UserPlus } from "@phosphor-icons/react/dist/csr/UserPlus";
 import { createTutorSchema, type CreateTutorInput } from "@vetclinic/contracts";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -9,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -86,8 +88,8 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
     );
   };
 
-  // El conflicto (409) ya cierra el diálogo y avisa por otra vía (banner +
-  // fila resaltada en la tabla) — no lo repetimos como mensaje genérico acá.
+  // El conflicto (409) ya cierra el diálogo y selecciona esa fila en la
+  // tabla maestro-detalle — no lo repetimos como mensaje genérico acá.
   const apiErrorMessage = getExistingTutorId(createTutor.error)
     ? null
     : getApiErrorMessage(createTutor.error, "No se pudo guardar el acudiente. Intente de nuevo.");
@@ -98,8 +100,14 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
         <Button type="button">+ Nuevo acudiente</Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Nuevo acudiente</DialogTitle>
+        <DialogHeader className="flex-row items-start gap-3 space-y-0">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[12px] bg-brand-100 text-brand-700">
+            <UserPlus size={20} weight="duotone" />
+          </span>
+          <div className="flex-1 text-left">
+            <DialogTitle>Nuevo acudiente</DialogTitle>
+            <DialogDescription>Documento y teléfono son obligatorios.</DialogDescription>
+          </div>
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="grid gap-3">
           <div className="grid grid-cols-[1fr_2fr] gap-3">
@@ -132,7 +140,7 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
                 {...register("documentNumber")}
               />
               {errors.documentNumber && (
-                <p className="text-[13px] text-brand-2-700">
+                <p className="text-[13px] text-destructive">
                   {errors.documentNumber.message}
                 </p>
               )}
@@ -144,14 +152,14 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
               <Label htmlFor="ac-first">Nombres</Label>
               <Input id="ac-first" {...register("firstName")} />
               {errors.firstName && (
-                <p className="text-[13px] text-brand-2-700">{errors.firstName.message}</p>
+                <p className="text-[13px] text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ac-last">Apellidos</Label>
               <Input id="ac-last" {...register("lastName")} />
               {errors.lastName && (
-                <p className="text-[13px] text-brand-2-700">{errors.lastName.message}</p>
+                <p className="text-[13px] text-destructive">{errors.lastName.message}</p>
               )}
             </div>
           </div>
@@ -161,14 +169,14 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
               <Label htmlFor="ac-phone">Teléfono</Label>
               <Input id="ac-phone" placeholder="+57 300 000 0000" {...register("phone")} />
               {errors.phone && (
-                <p className="text-[13px] text-brand-2-700">{errors.phone.message}</p>
+                <p className="text-[13px] text-destructive">{errors.phone.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ac-email">Correo (opcional)</Label>
               <Input id="ac-email" type="email" {...register("email")} />
               {errors.email && (
-                <p className="text-[13px] text-brand-2-700">{errors.email.message}</p>
+                <p className="text-[13px] text-destructive">{errors.email.message}</p>
               )}
             </div>
           </div>
@@ -195,10 +203,10 @@ export function TutorFormDialog({ onConflict }: TutorFormDialogProps) {
             </Label>
           </div>
           {errors.dataConsent && (
-            <p className="text-[13px] text-brand-2-700">{errors.dataConsent.message}</p>
+            <p className="text-[13px] text-destructive">{errors.dataConsent.message}</p>
           )}
 
-          {apiErrorMessage && <p className="text-[13px] text-brand-2-700">{apiErrorMessage}</p>}
+          {apiErrorMessage && <p className="text-[13px] text-destructive">{apiErrorMessage}</p>}
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={closeAndReset}>

@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import { Source_Serif_4 } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const sourceSerif = Source_Serif_4({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["400", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-source-serif",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta-sans",
 });
 
 export const metadata: Metadata = {
-  title: "Haku Veterinaria",
+  title: "Kahu",
   description: "Sistema de gestión para clínica veterinaria",
 };
 
@@ -19,7 +18,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={sourceSerif.variable}>
+    <html lang="es" className={plusJakartaSans.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

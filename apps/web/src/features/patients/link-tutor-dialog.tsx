@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { UserPlus } from "@phosphor-icons/react/dist/csr/UserPlus";
 import { linkTutorSchema, type LinkTutorInput } from "@vetclinic/contracts";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -9,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -83,8 +85,14 @@ export function LinkTutorDialog({ patientId, linkedTutorIds }: LinkTutorDialogPr
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Vincular acudiente</DialogTitle>
+        <DialogHeader className="flex-row items-start gap-3 space-y-0">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[12px] bg-brand-100 text-brand-700">
+            <UserPlus size={20} weight="duotone" />
+          </span>
+          <div className="flex-1 text-left">
+            <DialogTitle>Vincular acudiente</DialogTitle>
+            <DialogDescription>Asocia un acudiente ya registrado a esta mascota.</DialogDescription>
+          </div>
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="grid gap-3">
           <div className="space-y-1.5">
@@ -108,7 +116,7 @@ export function LinkTutorDialog({ patientId, linkedTutorIds }: LinkTutorDialogPr
               )}
             />
             {errors.tutorId && (
-              <p className="text-[13px] text-brand-2-700">{errors.tutorId.message}</p>
+              <p className="text-[13px] text-destructive">{errors.tutorId.message}</p>
             )}
             {availableTutors.length === 0 && (
               <p className="text-[13px] opacity-70">
@@ -143,7 +151,7 @@ export function LinkTutorDialog({ patientId, linkedTutorIds }: LinkTutorDialogPr
             </Label>
           </div>
 
-          {apiErrorMessage && <p className="text-[13px] text-brand-2-700">{apiErrorMessage}</p>}
+          {apiErrorMessage && <p className="text-[13px] text-destructive">{apiErrorMessage}</p>}
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={closeAndReset}>

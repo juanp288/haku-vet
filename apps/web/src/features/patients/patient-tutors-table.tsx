@@ -86,7 +86,7 @@ export function PatientTutorsTable({ patientId, tutors }: PatientTutorsTableProp
         </TableBody>
       </Table>
       {unlinkErrorMessage && (
-        <p className="mt-2 text-[13px] text-brand-2-700">{unlinkErrorMessage}</p>
+        <p className="mt-2 text-[13px] text-destructive">{unlinkErrorMessage}</p>
       )}
     </div>
   );

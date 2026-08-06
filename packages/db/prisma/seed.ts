@@ -37,7 +37,7 @@ async function seedClinicSettings() {
     update: {},
     create: {
       id: "singleton",
-      name: "Haku Veterinaria San Rafael",
+      name: "Kahu Tienda Veterinaria",
       timezone: "America/Bogota",
       defaultAppointmentMin: 30,
       openingHour: 8,

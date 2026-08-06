@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Administración — Haku Veterinaria",
+  title: "Administración — Kahu",
 };
 
 export default function AdminPage() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { PawPrint } from "@phosphor-icons/react/dist/csr/PawPrint";
 import { createPatientSchema, type CreatePatientInput } from "@vetclinic/contracts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -26,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorDetails, getApiErrorMessage } from "@/lib/api-error";
+import { getInitials } from "@/lib/avatar";
 import { SPECIES_LABELS, SPECIES_OPTIONS } from "@/lib/species-labels";
 import { SEX_LABELS, SEX_OPTIONS } from "./sex-labels";
 import { useBreeds } from "./use-breeds";
@@ -60,9 +63,10 @@ function getExistingPatientId(error: unknown): string | null {
 interface PatientFormDialogProps {
   tutorId: string;
   tutorName: string;
+  tutorDocument: string;
 }
 
-export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps) {
+export function PatientFormDialog({ tutorId, tutorName, tutorDocument }: PatientFormDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [breedMode, setBreedMode] = useState<"catalog" | "otra">("catalog");
@@ -115,20 +119,33 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : closeAndReset())}>
       <DialogTrigger asChild>
-        <Button type="button" variant="secondary" size="sm">
+        <Button type="button" variant="positive" size="sm">
           + Mascota
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Nueva mascota</DialogTitle>
+        <DialogHeader className="flex-row items-start gap-3 space-y-0">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[12px] bg-brand-2-100 text-brand-2-700">
+            <PawPrint size={20} weight="duotone" />
+          </span>
+          <div className="flex-1 text-left">
+            <DialogTitle>Nueva mascota</DialogTitle>
+            <DialogDescription>Se vincula al acudiente cuya ficha está abierta.</DialogDescription>
+          </div>
         </DialogHeader>
-        <p className="-mt-2 text-[13px] opacity-70">Acudiente: {tutorName}</p>
+        <div className="flex items-center gap-2.5 rounded-[var(--radius-sm)] border border-border bg-muted/60 px-3 py-2.5">
+          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-[8px] bg-brand-100 text-[11px] font-extrabold text-brand-700">
+            {getInitials(tutorName)}
+          </span>
+          <span className="text-[13.5px] font-bold">{tutorName}</span>
+          <span className="flex-1" />
+          <span className="text-[12px] text-neutral-600">{tutorDocument}</span>
+        </div>
         <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="grid gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="pt-name">Nombre</Label>
             <Input id="pt-name" {...register("name")} />
-            {errors.name && <p className="text-[13px] text-brand-2-700">{errors.name.message}</p>}
+            {errors.name && <p className="text-[13px] text-destructive">{errors.name.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -189,7 +206,7 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
               <Label htmlFor="pt-species-other">Cuál especie</Label>
               <Input id="pt-species-other" {...register("speciesOther")} />
               {errors.speciesOther && (
-                <p className="text-[13px] text-brand-2-700">{errors.speciesOther.message}</p>
+                <p className="text-[13px] text-destructive">{errors.speciesOther.message}</p>
               )}
             </div>
           )}
@@ -225,7 +242,7 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
               <Input placeholder="Escriba la raza" className="mt-1.5" {...register("breedOther")} />
             )}
             {errors.breedOther && (
-              <p className="text-[13px] text-brand-2-700">{errors.breedOther.message}</p>
+              <p className="text-[13px] text-destructive">{errors.breedOther.message}</p>
             )}
           </div>
 
@@ -234,7 +251,7 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
               <Label htmlFor="pt-birthdate">Fecha de nacimiento (opcional)</Label>
               <Input id="pt-birthdate" type="date" {...register("birthDate")} />
               {errors.birthDate && (
-                <p className="text-[13px] text-brand-2-700">{errors.birthDate.message}</p>
+                <p className="text-[13px] text-destructive">{errors.birthDate.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -281,7 +298,7 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
             <Label htmlFor="pt-microchip">Microchip (opcional)</Label>
             <Input id="pt-microchip" {...register("microchip")} />
             {existingPatientId && (
-              <p className="text-[13px] text-brand-2-700">
+              <p className="text-[13px] text-destructive">
                 Ya existe una mascota registrada con este microchip.{" "}
                 <Link href={`/pacientes/${existingPatientId}`} className="underline">
                   Ver mascota
@@ -291,7 +308,7 @@ export function PatientFormDialog({ tutorId, tutorName }: PatientFormDialogProps
             )}
           </div>
 
-          {apiErrorMessage && <p className="text-[13px] text-brand-2-700">{apiErrorMessage}</p>}
+          {apiErrorMessage && <p className="text-[13px] text-destructive">{apiErrorMessage}</p>}
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={closeAndReset}>
