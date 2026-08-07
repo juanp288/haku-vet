@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatAgeLabel, getDatePartsInTimezone, getDatePartsUTC } from "./clinic-time.util";
+import {
+  formatAgeLabel,
+  formatDateParts,
+  formatTimeInTimezone,
+  getDatePartsInTimezone,
+  getDatePartsUTC,
+  getDayOfWeekUTC,
+  getDayRangeInTimezone,
+  getUtcInstantForZonedTime,
+  parseDateParts,
+} from "./clinic-time.util";
 
 describe("getDatePartsInTimezone", () => {
   it("lee el día correcto incluso cuando UTC ya cruzó la medianoche", () => {
@@ -16,6 +26,80 @@ describe("getDatePartsUTC", () => {
       month: 5,
       day: 1,
     });
+  });
+});
+
+describe("parseDateParts", () => {
+  it("separa año, mes y día de una fecha AAAA-MM-DD", () => {
+    expect(parseDateParts("2026-08-06")).toEqual({ year: 2026, month: 8, day: 6 });
+  });
+});
+
+describe("formatTimeInTimezone", () => {
+  it("formatea la hora de pared en la zona de la clínica, con ceros a la izquierda", () => {
+    // 13:00 UTC en América/Bogotá (UTC-5) son las 08:00 locales.
+    expect(formatTimeInTimezone(new Date("2026-08-06T13:00:00.000Z"), "America/Bogota")).toBe(
+      "08:00",
+    );
+    expect(formatTimeInTimezone(new Date("2026-08-06T13:05:00.000Z"), "America/Bogota")).toBe(
+      "08:05",
+    );
+  });
+});
+
+describe("formatDateParts", () => {
+  it("rellena con ceros mes y día de un dígito", () => {
+    expect(formatDateParts({ year: 2026, month: 3, day: 7 })).toBe("2026-03-07");
+  });
+});
+
+describe("getDayOfWeekUTC", () => {
+  it("2000-01-01 fue sábado (ancla conocida, sin depender de la fecha del sistema)", () => {
+    expect(getDayOfWeekUTC({ year: 2000, month: 1, day: 1 })).toBe(6);
+  });
+
+  it("2000-01-02 fue domingo", () => {
+    expect(getDayOfWeekUTC({ year: 2000, month: 1, day: 2 })).toBe(0);
+  });
+});
+
+describe("getUtcInstantForZonedTime", () => {
+  it("RN-19: 8:00 en América/Bogotá (UTC-5 fijo, sin horario de verano) son las 13:00 UTC", () => {
+    const instant = getUtcInstantForZonedTime({ year: 2026, month: 8, day: 6 }, 8, 0, "America/Bogota");
+    expect(instant.toISOString()).toBe("2026-08-06T13:00:00.000Z");
+  });
+
+  it("resuelve el desfase correcto en un timezone con horario de verano (verano: UTC-4)", () => {
+    const instant = getUtcInstantForZonedTime(
+      { year: 2026, month: 8, day: 6 },
+      8,
+      0,
+      "America/New_York",
+    );
+    expect(instant.toISOString()).toBe("2026-08-06T12:00:00.000Z");
+  });
+
+  it("el mismo timezone en invierno usa el otro desfase (invierno: UTC-5)", () => {
+    const instant = getUtcInstantForZonedTime(
+      { year: 2026, month: 1, day: 6 },
+      8,
+      0,
+      "America/New_York",
+    );
+    expect(instant.toISOString()).toBe("2026-01-06T13:00:00.000Z");
+  });
+
+  it("hour=24 avanza correctamente al día siguiente (medianoche del día calendario que termina)", () => {
+    const instant = getUtcInstantForZonedTime({ year: 2026, month: 8, day: 6 }, 24, 0, "America/Bogota");
+    expect(instant.toISOString()).toBe("2026-08-07T05:00:00.000Z");
+  });
+});
+
+describe("getDayRangeInTimezone", () => {
+  it("devuelve el rango [00:00, 24:00) del día calendario como instantes UTC reales", () => {
+    const range = getDayRangeInTimezone({ year: 2026, month: 8, day: 6 }, "America/Bogota");
+    expect(range.start.toISOString()).toBe("2026-08-06T05:00:00.000Z");
+    expect(range.end.toISOString()).toBe("2026-08-07T05:00:00.000Z");
   });
 });
 

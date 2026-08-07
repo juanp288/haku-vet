@@ -7,6 +7,7 @@ import { ClinicTimeModule } from "./common/clinic-time/clinic-time.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { PrismaModule } from "./common/prisma/prisma.module";
+import { AppointmentsModule } from "./modules/appointments/appointments.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BreedsModule } from "./modules/breeds/breeds.module";
 import { PatientsModule } from "./modules/patients/patients.module";
@@ -27,6 +28,7 @@ import { TutorsModule } from "./modules/tutors/tutors.module";
     BreedsModule,
     PatientsModule,
     SearchModule,
+    AppointmentsModule,
   ],
   controllers: [AppController],
   providers: [
