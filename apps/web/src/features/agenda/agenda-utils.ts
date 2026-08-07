@@ -23,6 +23,17 @@ export function formatDateLabel(date: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+/** "Lun 03" — encabezado corto de columna para la vista semanal (C4). */
+export function formatShortDateLabel(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const label = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1)).toLocaleDateString("es-CO", {
+    timeZone: "UTC",
+    weekday: "short",
+    day: "2-digit",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 function timeLabelToMinutes(label: string): number {
   const [hour, minute] = label.split(":").map(Number);
   return (hour ?? 0) * 60 + (minute ?? 0);

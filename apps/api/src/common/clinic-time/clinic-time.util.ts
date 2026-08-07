@@ -67,6 +67,16 @@ export function getDayOfWeekUTC(date: DateParts): number {
   return new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
 }
 
+/** Suma (o resta, con `days` negativo) días de calendario — aritmética pura, `Date.UTC` normaliza el desborde de mes/año. */
+export function addDaysToDateParts(date: DateParts, days: number): DateParts {
+  const result = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return {
+    year: result.getUTCFullYear(),
+    month: result.getUTCMonth() + 1,
+    day: result.getUTCDate(),
+  };
+}
+
 /**
  * RN-19: convierte una hora de pared ("las 8:00 de la clínica") en el
  * instante UTC real que representa, dado el timezone de la clínica. Usa

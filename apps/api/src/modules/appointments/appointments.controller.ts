@@ -4,12 +4,15 @@ import {
   changeAppointmentStatusSchema,
   createAppointmentSchema,
   getAgendaQuerySchema,
+  getAgendaWeekQuerySchema,
   moveAppointmentSchema,
   type AgendaAppointment,
   type AgendaDay,
+  type AgendaWeek,
   type ChangeAppointmentStatusInput,
   type CreateAppointmentInput,
   type GetAgendaQuery,
+  type GetAgendaWeekQuery,
   type MoveAppointmentInput,
 } from "@vetclinic/contracts";
 import type { JwtPayload } from "../../common/auth.constants";
@@ -28,6 +31,18 @@ export class AppointmentsController {
     @Query(new ZodValidationPipe(getAgendaQuerySchema)) query: GetAgendaQuery,
   ): Promise<AgendaDay> {
     return this.appointmentsService.getAgenda(query);
+  }
+
+  /**
+   * RN-18: "Ver agenda" está abierto a los 4 roles — sin @Roles(). El nav
+   * solo muestra este link a ADMIN (comodidad de UI, ver nav-links.ts), pero
+   * la vista semanal es la misma categoría de acción que la diaria.
+   */
+  @Get("week")
+  getWeek(
+    @Query(new ZodValidationPipe(getAgendaWeekQuerySchema)) query: GetAgendaWeekQuery,
+  ): Promise<AgendaWeek> {
+    return this.appointmentsService.getWeek(query);
   }
 
   /** RN-18: "Crear / mover citas" — ADMIN, VETERINARIO, RECEPCION (no AUXILIAR). */

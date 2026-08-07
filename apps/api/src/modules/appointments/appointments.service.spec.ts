@@ -214,6 +214,104 @@ describe("AppointmentsService", () => {
     expect(result.slotMinutes).toBe(30);
   });
 
+  describe("getWeek (C4)", () => {
+    it('RN-19: sin "date" en el query, resuelve la semana (lunes-domingo) a partir de "hoy" vía ClinicTimeService', async () => {
+      // "hoy" mockeado es 2026-08-06 (jueves) — la semana debe ser 08-03..08-09.
+      const result = await service.getWeek({});
+
+      expect(clinicTimeService.today).toHaveBeenCalledOnce();
+      expect(result.weekStart).toBe("2026-08-03");
+      expect(result.weekEnd).toBe("2026-08-09");
+      expect(result.days).toHaveLength(7);
+      expect(result.days.map((d) => d.date)).toEqual([
+        "2026-08-03",
+        "2026-08-04",
+        "2026-08-05",
+        "2026-08-06",
+        "2026-08-07",
+        "2026-08-08",
+        "2026-08-09",
+      ]);
+    });
+
+    it("con date explícito que cae domingo, la semana sigue siendo la de ese domingo (lunes anterior)", async () => {
+      const result = await service.getWeek({ date: "2026-08-09" });
+      expect(clinicTimeService.today).not.toHaveBeenCalled();
+      expect(result.weekStart).toBe("2026-08-03");
+      expect(result.weekEnd).toBe("2026-08-09");
+    });
+
+    it("con date explícito que ya es lunes, la semana empieza ese mismo día", async () => {
+      const result = await service.getWeek({ date: "2026-08-03" });
+      expect(result.weekStart).toBe("2026-08-03");
+      expect(result.weekEnd).toBe("2026-08-09");
+    });
+
+    it("cruza el límite de mes correctamente", async () => {
+      // 2026-08-31 es lunes.
+      const result = await service.getWeek({ date: "2026-09-02" });
+      expect(result.weekStart).toBe("2026-08-31");
+      expect(result.weekEnd).toBe("2026-09-06");
+    });
+
+    it("marca isWorkingDay por día según ClinicSettings.workingDays (domingo no laboral por defecto)", async () => {
+      const result = await service.getWeek({ date: "2026-08-03" });
+      const sunday = result.days.find((d) => d.date === "2026-08-09");
+      const thursday = result.days.find((d) => d.date === "2026-08-06");
+      expect(sunday?.isWorkingDay).toBe(false);
+      expect(thursday?.isWorkingDay).toBe(true);
+    });
+
+    it("hace una sola consulta al repository para toda la semana (no una por día)", async () => {
+      await service.getWeek({ date: "2026-08-03" });
+      expect(appointmentsRepository.findAppointmentsInRange).toHaveBeenCalledOnce();
+    });
+
+    it("reparte cada cita bajo el día y el veterinario correctos", async () => {
+      appointmentsRepository.findAppointmentsInRange.mockResolvedValue([
+        buildAppointmentRow({
+          id: "appt_mon",
+          startsAt: new Date("2026-08-03T13:00:00.000Z"), // lunes 08:00 Bogotá
+          endsAt: new Date("2026-08-03T13:30:00.000Z"),
+        }),
+        buildAppointmentRow({
+          id: "appt_fri",
+          startsAt: new Date("2026-08-07T13:00:00.000Z"), // viernes 08:00 Bogotá
+          endsAt: new Date("2026-08-07T13:30:00.000Z"),
+        }),
+      ]);
+
+      const result = await service.getWeek({ date: "2026-08-03" });
+
+      const monday = result.days.find((d) => d.date === "2026-08-03");
+      const friday = result.days.find((d) => d.date === "2026-08-07");
+      const tuesday = result.days.find((d) => d.date === "2026-08-04");
+
+      expect(monday?.vets[0]?.appointments.map((a) => a.id)).toEqual(["appt_mon"]);
+      expect(friday?.vets[0]?.appointments.map((a) => a.id)).toEqual(["appt_fri"]);
+      expect(tuesday?.vets[0]?.appointments).toHaveLength(0);
+    });
+
+    it("cada día incluye una columna por veterinario activo, incluso sin citas", async () => {
+      appointmentsRepository.findActiveVets.mockResolvedValue([
+        buildVet({ id: "vet_1" }),
+        buildVet({ id: "vet_2", fullName: "Dr. Andrés Rueda" }),
+      ]);
+      appointmentsRepository.findAppointmentsInRange.mockResolvedValue([]);
+
+      const result = await service.getWeek({ date: "2026-08-03" });
+
+      expect(result.days.every((d) => d.vets.length === 2)).toBe(true);
+    });
+
+    it("expone el horario configurado de la clínica en la respuesta", async () => {
+      const result = await service.getWeek({ date: "2026-08-03" });
+      expect(result.openingHour).toBe(8);
+      expect(result.closingHour).toBe(18);
+      expect(result.slotMinutes).toBe(30);
+    });
+  });
+
   describe("create", () => {
     it("agenda la cita cuando todo es válido y audita la creación", async () => {
       const result = await service.create(buildCreateInput(), USER_ID, "RECEPCION", IP);

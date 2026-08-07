@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDaysToDateParts,
   formatAgeLabel,
   formatDateParts,
   formatTimeInTimezone,
@@ -69,6 +70,48 @@ describe("getDayOfWeekUTC", () => {
 
   it("2000-01-02 fue domingo", () => {
     expect(getDayOfWeekUTC({ year: 2000, month: 1, day: 2 })).toBe(0);
+  });
+});
+
+describe("addDaysToDateParts", () => {
+  it("suma días dentro del mismo mes", () => {
+    expect(addDaysToDateParts({ year: 2026, month: 8, day: 6 }, 3)).toEqual({
+      year: 2026,
+      month: 8,
+      day: 9,
+    });
+  });
+
+  it("resta días con delta negativo", () => {
+    expect(addDaysToDateParts({ year: 2026, month: 8, day: 6 }, -3)).toEqual({
+      year: 2026,
+      month: 8,
+      day: 3,
+    });
+  });
+
+  it("cruza el límite de mes", () => {
+    expect(addDaysToDateParts({ year: 2026, month: 8, day: 30 }, 3)).toEqual({
+      year: 2026,
+      month: 9,
+      day: 2,
+    });
+  });
+
+  it("cruza el límite de año", () => {
+    expect(addDaysToDateParts({ year: 2026, month: 12, day: 30 }, 3)).toEqual({
+      year: 2027,
+      month: 1,
+      day: 2,
+    });
+  });
+
+  it("delta 0 devuelve la misma fecha", () => {
+    expect(addDaysToDateParts({ year: 2026, month: 8, day: 6 }, 0)).toEqual({
+      year: 2026,
+      month: 8,
+      day: 6,
+    });
   });
 });
 

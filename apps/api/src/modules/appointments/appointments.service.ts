@@ -8,15 +8,19 @@ import {
 import type {
   AgendaAppointment,
   AgendaDay,
+  AgendaWeek,
   ChangeAppointmentStatusInput,
   CreateAppointmentInput,
   GetAgendaQuery,
+  GetAgendaWeekQuery,
   MoveAppointmentInput,
+  WeekDay,
 } from "@vetclinic/contracts";
 import type { Role } from "@vetclinic/db";
 import { AuditService } from "../../common/audit/audit.service";
 import { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
 import {
+  addDaysToDateParts,
   formatDateParts,
   formatTimeInTimezone,
   getDayOfWeekUTC,
@@ -73,6 +77,67 @@ export class AppointmentsService {
         color: vet.color,
         appointments: appointmentsByVet.get(vet.id) ?? [],
       })),
+    };
+  }
+
+  /**
+   * C4: vista semanal (lunes a domingo) para planear turnos. RN-19 — la
+   * fecha ancla se resuelve igual que en C1 (ClinicSettings.timezone, no el
+   * reloj del cliente); el lunes de esa semana se calcula con aritmética de
+   * calendario pura (RN-19 solo importa para pasar de hora de pared a
+   * instante UTC, no para sumar/restar días de calendario). Una sola
+   * consulta cubre los 7 días — se reparten después en memoria en vez de
+   * hacer 7 ida-y-vuelta a la base de datos.
+   */
+  async getWeek(query: GetAgendaWeekQuery): Promise<AgendaWeek> {
+    const settings = await this.clinicTimeService.getSettings();
+    const anchor = query.date ? parseDateParts(query.date) : await this.clinicTimeService.today();
+
+    const daysSinceMonday = (getDayOfWeekUTC(anchor) + 6) % 7;
+    const weekStartParts = addDaysToDateParts(anchor, -daysSinceMonday);
+    const dayPartsList = Array.from({ length: 7 }, (_, i) => addDaysToDateParts(weekStartParts, i));
+    const dayRanges = dayPartsList.map((parts) => getDayRangeInTimezone(parts, settings.timezone));
+
+    const [vets, appointments] = await Promise.all([
+      this.appointmentsRepository.findActiveVets(),
+      this.appointmentsRepository.findAppointmentsInRange(
+        dayRanges[0]!.start,
+        dayRanges[6]!.end,
+      ),
+    ]);
+
+    const days: WeekDay[] = dayPartsList.map((parts, i) => {
+      const { start, end } = dayRanges[i]!;
+      const dayAppointments = appointments.filter(
+        (appointment) => appointment.startsAt >= start && appointment.startsAt < end,
+      );
+
+      const appointmentsByVet = new Map<string, AgendaAppointment[]>();
+      for (const appointment of dayAppointments) {
+        const list = appointmentsByVet.get(appointment.vetId) ?? [];
+        list.push(this.toAgendaAppointment(appointment, settings.timezone));
+        appointmentsByVet.set(appointment.vetId, list);
+      }
+
+      return {
+        date: formatDateParts(parts),
+        isWorkingDay: settings.workingDays.includes(getDayOfWeekUTC(parts)),
+        vets: vets.map((vet) => ({
+          vetId: vet.id,
+          vetName: vet.fullName,
+          color: vet.color,
+          appointments: appointmentsByVet.get(vet.id) ?? [],
+        })),
+      };
+    });
+
+    return {
+      weekStart: formatDateParts(weekStartParts),
+      weekEnd: formatDateParts(dayPartsList[6]!),
+      openingHour: settings.openingHour,
+      closingHour: settings.closingHour,
+      slotMinutes: settings.slotMinutes,
+      days,
     };
   }
 

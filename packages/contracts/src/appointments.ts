@@ -130,6 +130,38 @@ export const moveAppointmentSchema = z.object({
 });
 export type MoveAppointmentInput = z.infer<typeof moveAppointmentSchema>;
 
+/**
+ * C4: vista semanal (lunes a domingo, RN-19 igual que C1 — "hoy"/la semana
+ * de referencia se resuelven con ClinicSettings.timezone). Reutiliza
+ * `agendaVetColumnSchema` para que cada día traiga las mismas citas
+ * completas que ya usa la vista diaria: mismos chips, mismo click-through
+ * al paciente, sin inventar un tipo "resumen" aparte.
+ */
+export const weekDaySchema = z.object({
+  date: z.string(),
+  isWorkingDay: z.boolean(),
+  vets: z.array(agendaVetColumnSchema),
+});
+export type WeekDay = z.infer<typeof weekDaySchema>;
+
+export const agendaWeekSchema = z.object({
+  weekStart: z.string(),
+  weekEnd: z.string(),
+  openingHour: z.number(),
+  closingHour: z.number(),
+  slotMinutes: z.number(),
+  days: z.array(weekDaySchema),
+});
+export type AgendaWeek = z.infer<typeof agendaWeekSchema>;
+
+export const getAgendaWeekQuerySchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." })
+    .optional(),
+});
+export type GetAgendaWeekQuery = z.infer<typeof getAgendaWeekQuerySchema>;
+
 const c = initContract();
 
 export const appointmentsContract = c.router({
@@ -139,6 +171,14 @@ export const appointmentsContract = c.router({
     query: getAgendaQuerySchema,
     responses: {
       200: agendaDaySchema,
+    },
+  },
+  getWeek: {
+    method: "GET",
+    path: "/appointments/week",
+    query: getAgendaWeekQuerySchema,
+    responses: {
+      200: agendaWeekSchema,
     },
   },
   create: {
