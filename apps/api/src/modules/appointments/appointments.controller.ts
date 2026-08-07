@@ -1,12 +1,16 @@
-import { Body, Controller, Get, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req } from "@nestjs/common";
 import type { Request } from "express";
 import {
+  changeAppointmentStatusSchema,
   createAppointmentSchema,
   getAgendaQuerySchema,
+  moveAppointmentSchema,
   type AgendaAppointment,
   type AgendaDay,
+  type ChangeAppointmentStatusInput,
   type CreateAppointmentInput,
   type GetAgendaQuery,
+  type MoveAppointmentInput,
 } from "@vetclinic/contracts";
 import type { JwtPayload } from "../../common/auth.constants";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -35,5 +39,31 @@ export class AppointmentsController {
     @Req() req: Request,
   ): Promise<AgendaAppointment> {
     return this.appointmentsService.create(body, user.sub, user.role, req.ip ?? "unknown");
+  }
+
+  /** RN-18: "Crear / mover citas" — mismo grupo de roles que create() cubre también cambios de estado. */
+  @Post(":id/status")
+  @HttpCode(HttpStatus.OK)
+  @Roles("ADMIN", "VETERINARIO", "RECEPCION")
+  changeStatus(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(changeAppointmentStatusSchema)) body: ChangeAppointmentStatusInput,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ): Promise<AgendaAppointment> {
+    return this.appointmentsService.changeStatus(id, body, user.sub, req.ip ?? "unknown");
+  }
+
+  /** RN-18: "Crear / mover citas" — ADMIN, VETERINARIO, RECEPCION (no AUXILIAR). */
+  @Post(":id/move")
+  @HttpCode(HttpStatus.OK)
+  @Roles("ADMIN", "VETERINARIO", "RECEPCION")
+  move(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(moveAppointmentSchema)) body: MoveAppointmentInput,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ): Promise<AgendaAppointment> {
+    return this.appointmentsService.move(id, body, user.role, user.sub, req.ip ?? "unknown");
   }
 }

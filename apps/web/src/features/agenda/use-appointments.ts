@@ -12,3 +12,22 @@ export function useCreateAppointment() {
     },
   });
 }
+
+export function useChangeAppointmentStatus() {
+  const queryClient = useQueryClient();
+  return tsr.appointments.changeStatus.useMutation({
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+}
+
+export function useMoveAppointment() {
+  const queryClient = useQueryClient();
+  return tsr.appointments.move.useMutation({
+    // También en error (409): revalida solapamiento, la agenda se refresca igual.
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agenda"] });
+    },
+  });
+}

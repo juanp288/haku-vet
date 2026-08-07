@@ -1,6 +1,11 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CreateAppointmentInput } from "@vetclinic/contracts";
+import type { CreateAppointmentInput, MoveAppointmentInput } from "@vetclinic/contracts";
 import type { AuditService } from "../../common/audit/audit.service";
 import type { ClinicScheduleSettings, ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
 import type { PatientsRepository } from "../patients/patients.repository";
@@ -49,6 +54,7 @@ function buildAppointmentRow(overrides: Partial<AppointmentRow> = {}): Appointme
         },
       ],
     },
+    consultation: null,
     ...overrides,
   } as AppointmentRow;
 }
@@ -67,12 +73,23 @@ function buildCreateInput(overrides: Partial<CreateAppointmentInput> = {}): Crea
   };
 }
 
+function buildMoveInput(overrides: Partial<MoveAppointmentInput> = {}): MoveAppointmentInput {
+  return {
+    date: "2026-08-06",
+    time: "11:00",
+    ...overrides,
+  };
+}
+
 describe("AppointmentsService", () => {
   let appointmentsRepository: {
     findActiveVets: ReturnType<typeof vi.fn>;
     findActiveVetById: ReturnType<typeof vi.fn>;
     findAppointmentsInRange: ReturnType<typeof vi.fn>;
     createAppointment: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    updateStatus: ReturnType<typeof vi.fn>;
+    moveAppointment: ReturnType<typeof vi.fn>;
   };
   let patientsRepository: { findById: ReturnType<typeof vi.fn> };
   let clinicTimeService: { today: ReturnType<typeof vi.fn>; getSettings: ReturnType<typeof vi.fn> };
@@ -88,6 +105,13 @@ describe("AppointmentsService", () => {
       findActiveVetById: vi.fn().mockResolvedValue(buildVet()),
       findAppointmentsInRange: vi.fn().mockResolvedValue([]),
       createAppointment: vi.fn().mockResolvedValue({ outcome: "ok", appointment: buildAppointmentRow() }),
+      findById: vi.fn().mockResolvedValue(buildAppointmentRow()),
+      updateStatus: vi
+        .fn()
+        .mockImplementation((id: string, _from: string, data: Partial<AppointmentRow>) =>
+          Promise.resolve(buildAppointmentRow({ id, ...data })),
+        ),
+      moveAppointment: vi.fn().mockResolvedValue({ outcome: "ok", appointment: buildAppointmentRow() }),
     };
     patientsRepository = { findById: vi.fn().mockResolvedValue({ isDeceased: false }) };
     clinicTimeService = {
@@ -320,6 +344,197 @@ describe("AppointmentsService", () => {
         expect(response.details.conflictingAppointment.id).toBe("appt_existente");
       }
       expect(audit.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("changeStatus (C3, RN-04)", () => {
+    it("aplica una transición válida y audita", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+
+      const result = await service.changeStatus("appt_1", { status: "CONFIRMADA" }, USER_ID, IP);
+
+      expect(result.status).toBe("CONFIRMADA");
+      expect(appointmentsRepository.updateStatus).toHaveBeenCalledWith(
+        "appt_1",
+        "AGENDADA",
+        expect.objectContaining({ status: "CONFIRMADA" }),
+      );
+      expect(audit.record).toHaveBeenCalledWith({
+        userId: USER_ID,
+        action: "UPDATE",
+        entityName: "Appointment",
+        entityId: "appt_1",
+        ipAddress: IP,
+      });
+    });
+
+    it("RN-04: rechaza una transición fuera del grafo con 422", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+
+      await expect(
+        service.changeStatus("appt_1", { status: "ATENDIDA" }, USER_ID, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(appointmentsRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it("RN-04: EN_SALA guarda arrivedAt con la hora del servidor", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "CONFIRMADA" }));
+
+      await service.changeStatus("appt_1", { status: "EN_SALA" }, USER_ID, IP);
+
+      expect(appointmentsRepository.updateStatus).toHaveBeenCalledWith(
+        "appt_1",
+        "CONFIRMADA",
+        expect.objectContaining({ status: "EN_SALA", arrivedAt: new Date("2026-08-01T12:00:00.000Z") }),
+      );
+    });
+
+    it("RN-04: cancelar guarda cancelledAt y el motivo", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+
+      await service.changeStatus(
+        "appt_1",
+        { status: "CANCELADA", cancelReason: "El tutor no puede asistir" },
+        USER_ID,
+        IP,
+      );
+
+      expect(appointmentsRepository.updateStatus).toHaveBeenCalledWith(
+        "appt_1",
+        "AGENDADA",
+        expect.objectContaining({
+          status: "CANCELADA",
+          cancelledAt: new Date("2026-08-01T12:00:00.000Z"),
+          cancelReason: "El tutor no puede asistir",
+        }),
+      );
+    });
+
+    it("RN-04: una cita con consulta cerrada no admite cambios de estado", async () => {
+      appointmentsRepository.findById.mockResolvedValue(
+        buildAppointmentRow({ status: "AGENDADA", consultation: { status: "CERRADA" } }),
+      );
+
+      await expect(
+        service.changeStatus("appt_1", { status: "CONFIRMADA" }, USER_ID, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(appointmentsRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it("404 si la cita no existe", async () => {
+      appointmentsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.changeStatus("appt_x", { status: "CONFIRMADA" }, USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("409 si el estado cambió entre la lectura y la escritura (carrera)", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+      appointmentsRepository.updateStatus.mockResolvedValue(null);
+
+      await expect(
+        service.changeStatus("appt_1", { status: "CONFIRMADA" }, USER_ID, IP),
+      ).rejects.toThrow(ConflictException);
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("move (C3)", () => {
+    it("reprograma dentro de horario preservando la duración original y audita", async () => {
+      appointmentsRepository.findById.mockResolvedValue(
+        buildAppointmentRow({
+          status: "AGENDADA",
+          startsAt: new Date("2026-08-06T13:00:00.000Z"),
+          endsAt: new Date("2026-08-06T13:30:00.000Z"),
+        }),
+      );
+
+      const result = await service.move("appt_1", buildMoveInput({ time: "11:00" }), "RECEPCION", USER_ID, IP);
+
+      expect(result.id).toBe("appt_1");
+      expect(appointmentsRepository.moveAppointment).toHaveBeenCalledWith(
+        "appt_1",
+        "vet_1",
+        new Date("2026-08-06T16:00:00.000Z"),
+        new Date("2026-08-06T16:30:00.000Z"),
+      );
+      expect(audit.record).toHaveBeenCalledWith({
+        userId: USER_ID,
+        action: "UPDATE",
+        entityName: "Appointment",
+        entityId: "appt_1",
+        ipAddress: IP,
+      });
+    });
+
+    it("RN-01: revalida el solapamiento — conflicto devuelve 409 con la cita existente", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+      const conflicting = buildAppointmentRow({ id: "appt_otra" });
+      appointmentsRepository.moveAppointment.mockResolvedValue({ outcome: "conflict", conflicting });
+
+      await expect(
+        service.move("appt_1", buildMoveInput(), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(ConflictException);
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it("solo se pueden mover citas agendadas o confirmadas", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "EN_SALA" }));
+      appointmentsRepository.moveAppointment.mockResolvedValue({ outcome: "invalid_status" });
+
+      await expect(
+        service.move("appt_1", buildMoveInput(), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it("una cita con consulta cerrada no se puede mover", async () => {
+      appointmentsRepository.findById.mockResolvedValue(
+        buildAppointmentRow({ status: "AGENDADA", consultation: { status: "CERRADA" } }),
+      );
+
+      await expect(
+        service.move("appt_1", buildMoveInput(), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(appointmentsRepository.moveAppointment).not.toHaveBeenCalled();
+    });
+
+    it("404 si la cita no existe", async () => {
+      appointmentsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.move("appt_x", buildMoveInput(), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("RN-03: rechaza mover al pasado salvo ADMIN", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+
+      await expect(
+        service.move("appt_1", buildMoveInput({ date: "2026-07-01", time: "10:00" }), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(BadRequestException);
+      expect(appointmentsRepository.moveAppointment).not.toHaveBeenCalled();
+
+      await service.move("appt_1", buildMoveInput({ date: "2026-07-01", time: "10:00" }), "ADMIN", USER_ID, IP);
+      expect(appointmentsRepository.moveAppointment).toHaveBeenCalled();
+    });
+
+    it("RN-02: rechaza mover fuera del horario configurado de la clínica", async () => {
+      appointmentsRepository.findById.mockResolvedValue(buildAppointmentRow({ status: "AGENDADA" }));
+
+      await expect(
+        service.move("appt_1", buildMoveInput({ time: "21:00" }), "RECEPCION", USER_ID, IP),
+      ).rejects.toThrow(BadRequestException);
+      expect(appointmentsRepository.moveAppointment).not.toHaveBeenCalled();
+    });
+
+    it("RN-02: URGENCIA se permite mover fuera del horario configurado", async () => {
+      appointmentsRepository.findById.mockResolvedValue(
+        buildAppointmentRow({ status: "AGENDADA", type: "URGENCIA" }),
+      );
+
+      await service.move("appt_1", buildMoveInput({ time: "21:00" }), "RECEPCION", USER_ID, IP);
+      expect(appointmentsRepository.moveAppointment).toHaveBeenCalled();
     });
   });
 });

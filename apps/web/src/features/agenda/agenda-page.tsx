@@ -2,42 +2,61 @@
 
 import { CaretLeft } from "@phosphor-icons/react/dist/csr/CaretLeft";
 import { CaretRight } from "@phosphor-icons/react/dist/csr/CaretRight";
+import { DotsThreeVertical } from "@phosphor-icons/react/dist/csr/DotsThreeVertical";
 import type { AgendaAppointment, AgendaVetColumn } from "@vetclinic/contracts";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SPECIES_ICONS } from "@/features/patients/species-icons";
 import { addDays, buildSlotLabels, formatDateLabel, isInSlot, isOutsideHours } from "./agenda-utils";
+import { AppointmentActionsDialog } from "./appointment-actions-dialog";
 import { APPOINTMENT_STATUS_CLASSES, APPOINTMENT_STATUS_LABELS } from "./appointment-status-labels";
 import { NewAppointmentDialog } from "./new-appointment-dialog";
 import { useAgenda } from "./use-agenda";
 
-function AppointmentCard({ appointment }: { appointment: AgendaAppointment }) {
+function AppointmentCard({
+  appointment,
+  onManage,
+}: {
+  appointment: AgendaAppointment;
+  onManage: (appointment: AgendaAppointment) => void;
+}) {
   const SpeciesIcon = SPECIES_ICONS[appointment.patientSpecies];
   return (
-    <Link
-      href={`/pacientes/${appointment.patientId}`}
-      className="block rounded-[12px] border border-border bg-card p-2.5 text-left hover:border-neutral-400"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] font-extrabold tracking-[0.01em] text-neutral-700">
-          {appointment.startTimeLabel}
-        </span>
-        <span className="flex-1" />
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10.5px] font-extrabold ${APPOINTMENT_STATUS_CLASSES[appointment.status]}`}
-        >
-          {APPOINTMENT_STATUS_LABELS[appointment.status]}
-        </span>
-      </div>
-      <div className="mt-1.5 flex items-center gap-1.5 text-[15px] font-bold">
-        <SpeciesIcon size={15} weight="duotone" className="text-neutral-500" />
-        {appointment.patientName}
-      </div>
-      <div className="mt-0.5 truncate text-[12.5px] text-neutral-600">
-        {appointment.tutorName} · {appointment.reason}
-      </div>
-    </Link>
+    <div className="relative rounded-[12px] border border-border bg-card p-2.5 text-left hover:border-neutral-400">
+      <Link href={`/pacientes/${appointment.patientId}`} className="block pr-6">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-extrabold tracking-[0.01em] text-neutral-700">
+            {appointment.startTimeLabel}
+          </span>
+          <span className="flex-1" />
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10.5px] font-extrabold ${APPOINTMENT_STATUS_CLASSES[appointment.status]}`}
+          >
+            {APPOINTMENT_STATUS_LABELS[appointment.status]}
+          </span>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[15px] font-bold">
+          <SpeciesIcon size={15} weight="duotone" className="text-neutral-500" />
+          {appointment.patientName}
+        </div>
+        <div className="mt-0.5 truncate text-[12.5px] text-neutral-600">
+          {appointment.tutorName} · {appointment.reason}
+        </div>
+      </Link>
+      <button
+        type="button"
+        aria-label="Gestionar cita"
+        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-muted hover:text-neutral-700"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onManage(appointment);
+        }}
+      >
+        <DotsThreeVertical size={16} weight="bold" />
+      </button>
+    </div>
   );
 }
 
@@ -48,6 +67,7 @@ function VetColumn({
   closingHour,
   slotMinutes,
   onSlotClick,
+  onManage,
 }: {
   column: AgendaVetColumn;
   slots: string[];
@@ -55,6 +75,7 @@ function VetColumn({
   closingHour: number;
   slotMinutes: number;
   onSlotClick: (vetId: string, time: string) => void;
+  onManage: (appointment: AgendaAppointment) => void;
 }) {
   const outsideHours = column.appointments.filter((appointment) =>
     isOutsideHours(appointment.startTimeLabel, openingHour, closingHour),
@@ -78,7 +99,7 @@ function VetColumn({
         {slots.map((slot) => {
           const appointment = column.appointments.find((a) => isInSlot(a.startTimeLabel, slot, slotMinutes));
           if (appointment) {
-            return <AppointmentCard key={slot} appointment={appointment} />;
+            return <AppointmentCard key={slot} appointment={appointment} onManage={onManage} />;
           }
           return (
             <button
@@ -100,7 +121,7 @@ function VetColumn({
             </div>
             <div className="flex flex-col gap-[7px]">
               {outsideHours.map((appointment) => (
-                <AppointmentCard key={appointment.id} appointment={appointment} />
+                <AppointmentCard key={appointment.id} appointment={appointment} onManage={onManage} />
               ))}
             </div>
           </div>
@@ -116,6 +137,7 @@ export function AgendaPage() {
   const agenda = data?.body;
 
   const [slotDialog, setSlotDialog] = useState<{ vetId: string; time: string } | null>(null);
+  const [manageAppointment, setManageAppointment] = useState<AgendaAppointment | null>(null);
 
   const slots = agenda ? buildSlotLabels(agenda.openingHour, agenda.closingHour, agenda.slotMinutes) : [];
 
@@ -180,9 +202,23 @@ export function AgendaPage() {
                   closingHour={agenda.closingHour}
                   slotMinutes={agenda.slotMinutes}
                   onSlotClick={(vetId, time) => setSlotDialog({ vetId, time })}
+                  onManage={setManageAppointment}
                 />
               ))}
             </div>
+          )}
+
+          {manageAppointment && (
+            <AppointmentActionsDialog
+              key={manageAppointment.id}
+              open
+              onOpenChange={(next) => {
+                if (!next) {
+                  setManageAppointment(null);
+                }
+              }}
+              appointment={manageAppointment}
+            />
           )}
 
           {slotDialog && (

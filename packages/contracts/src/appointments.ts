@@ -100,6 +100,36 @@ export const createAppointmentSchema = z.object({
 });
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 
+/**
+ * C3: cambio de estado (RN-04). `cancelReason` es obligatorio únicamente
+ * cuando `status` es `CANCELADA` — el resto de las validaciones del grafo
+ * (transición válida según el estado actual, consulta cerrada) se hacen en
+ * el backend, que es quien conoce el estado actual de la cita.
+ */
+export const changeAppointmentStatusSchema = z
+  .object({
+    status: appointmentStatusSchema,
+    cancelReason: z.string().max(300).optional(),
+  })
+  .refine((data) => data.status !== "CANCELADA" || !!data.cancelReason?.trim(), {
+    message: "Debe indicar el motivo de la cancelación.",
+    path: ["cancelReason"],
+  });
+export type ChangeAppointmentStatusInput = z.infer<typeof changeAppointmentStatusSchema>;
+
+/**
+ * C3: mover (reprogramar) una cita. Igual que en `createAppointmentSchema`,
+ * `date`+`time` son hora de pared de la clínica — el backend convierte a
+ * UTC con RN-19 y vuelve a validar RN-01/02/03 contra el nuevo horario.
+ */
+export const moveAppointmentSchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." }),
+  time: z.string().regex(/^\d{2}:\d{2}$/, { message: "La hora debe tener el formato HH:MM." }),
+});
+export type MoveAppointmentInput = z.infer<typeof moveAppointmentSchema>;
+
 const c = initContract();
 
 export const appointmentsContract = c.router({
@@ -120,6 +150,32 @@ export const appointmentsContract = c.router({
       400: errorSchema,
       404: errorSchema,
       409: errorSchema,
+    },
+  },
+  changeStatus: {
+    method: "POST",
+    path: "/appointments/:id/status",
+    pathParams: z.object({ id: z.string() }),
+    body: changeAppointmentStatusSchema,
+    responses: {
+      200: agendaAppointmentSchema,
+      400: errorSchema,
+      404: errorSchema,
+      409: errorSchema,
+      422: errorSchema,
+    },
+  },
+  move: {
+    method: "POST",
+    path: "/appointments/:id/move",
+    pathParams: z.object({ id: z.string() }),
+    body: moveAppointmentSchema,
+    responses: {
+      200: agendaAppointmentSchema,
+      400: errorSchema,
+      404: errorSchema,
+      409: errorSchema,
+      422: errorSchema,
     },
   },
 });

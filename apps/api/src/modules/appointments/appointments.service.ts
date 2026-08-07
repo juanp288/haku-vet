@@ -1,5 +1,18 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AgendaAppointment, AgendaDay, CreateAppointmentInput, GetAgendaQuery } from "@vetclinic/contracts";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
+import type {
+  AgendaAppointment,
+  AgendaDay,
+  ChangeAppointmentStatusInput,
+  CreateAppointmentInput,
+  GetAgendaQuery,
+  MoveAppointmentInput,
+} from "@vetclinic/contracts";
 import type { Role } from "@vetclinic/db";
 import { AuditService } from "../../common/audit/audit.service";
 import { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
@@ -13,6 +26,7 @@ import {
   parseTimeLabelToMinutes,
 } from "../../common/clinic-time/clinic-time.util";
 import { PatientsRepository } from "../patients/patients.repository";
+import { describeInvalidTransition, isValidAppointmentTransition } from "./appointment-state-machine";
 import { AppointmentsRepository, type AppointmentRow } from "./appointments.repository";
 
 @Injectable()
@@ -141,6 +155,133 @@ export class AppointmentsService {
       action: "CREATE",
       entityName: "Appointment",
       entityId: result.appointment.id,
+      ipAddress: ip,
+    });
+
+    return this.toAgendaAppointment(result.appointment, settings.timezone);
+  }
+
+  /** C3: cambiar de estado (confirmar, marcar en sala, cancelar, etc.) — RN-04. */
+  async changeStatus(
+    id: string,
+    input: ChangeAppointmentStatusInput,
+    userId: string,
+    ip: string,
+  ): Promise<AgendaAppointment> {
+    const current = await this.appointmentsRepository.findById(id);
+    if (!current) {
+      throw new NotFoundException("La cita no existe.");
+    }
+
+    if (current.consultation && current.consultation.status === "CERRADA") {
+      throw new UnprocessableEntityException(
+        "Esta cita tiene una consulta cerrada asociada: no admite cambios de estado.",
+      );
+    }
+
+    if (!isValidAppointmentTransition(current.status, input.status)) {
+      throw new UnprocessableEntityException(describeInvalidTransition(current.status, input.status));
+    }
+
+    const now = new Date();
+    const updated = await this.appointmentsRepository.updateStatus(id, current.status, {
+      status: input.status,
+      ...(input.status === "EN_SALA" ? { arrivedAt: now } : {}),
+      ...(input.status === "CANCELADA"
+        ? { cancelledAt: now, cancelReason: input.cancelReason?.trim() }
+        : {}),
+    });
+
+    if (!updated) {
+      throw new ConflictException(
+        "El estado de la cita cambió mientras se procesaba tu solicitud. Refresca la agenda e inténtalo de nuevo.",
+      );
+    }
+
+    const settings = await this.clinicTimeService.getSettings();
+    await this.auditService.record({
+      userId,
+      action: "UPDATE",
+      entityName: "Appointment",
+      entityId: id,
+      ipAddress: ip,
+    });
+
+    return this.toAgendaAppointment(updated, settings.timezone);
+  }
+
+  /** C3: reprogramar (mover) una cita — revalida RN-01/02/03 contra el nuevo horario. */
+  async move(
+    id: string,
+    input: MoveAppointmentInput,
+    userRole: Role,
+    userId: string,
+    ip: string,
+  ): Promise<AgendaAppointment> {
+    const current = await this.appointmentsRepository.findById(id);
+    if (!current) {
+      throw new NotFoundException("La cita no existe.");
+    }
+
+    if (current.consultation && current.consultation.status === "CERRADA") {
+      throw new UnprocessableEntityException(
+        "Esta cita tiene una consulta cerrada asociada: no admite cambios de horario.",
+      );
+    }
+
+    const dateParts = parseDateParts(input.date);
+    const [hour, minute] = input.time.split(":").map(Number);
+    const settings = await this.clinicTimeService.getSettings();
+    const durationMinutes = Math.round(
+      (current.endsAt.getTime() - current.startsAt.getTime()) / 60_000,
+    );
+
+    const startsAt = getUtcInstantForZonedTime(dateParts, hour ?? 0, minute ?? 0, settings.timezone);
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+
+    if (startsAt.getTime() < Date.now() && userRole !== "ADMIN") {
+      throw new BadRequestException("No se puede mover una cita al pasado.");
+    }
+
+    if (current.type !== "URGENCIA") {
+      const startMinutes = parseTimeLabelToMinutes(input.time);
+      const endMinutes = startMinutes + durationMinutes;
+      const isWorkingDay = settings.workingDays.includes(getDayOfWeekUTC(dateParts));
+      const withinHours =
+        startMinutes >= settings.openingHour * 60 && endMinutes <= settings.closingHour * 60;
+
+      if (!isWorkingDay || !withinHours) {
+        throw new BadRequestException(
+          "La cita debe quedar dentro del horario configurado de la clínica.",
+        );
+      }
+    }
+
+    const result = await this.appointmentsRepository.moveAppointment(id, current.vetId, startsAt, endsAt);
+
+    if (result.outcome === "not_found") {
+      throw new NotFoundException("La cita no existe.");
+    }
+    if (result.outcome === "invalid_status") {
+      throw new UnprocessableEntityException(
+        "Solo se pueden mover citas agendadas o confirmadas.",
+      );
+    }
+    if (result.outcome === "conflict") {
+      throw new ConflictException({
+        statusCode: 409,
+        message: "El veterinario ya tiene una cita agendada en ese horario.",
+        details: {
+          conflictingAppointment: this.toAgendaAppointment(result.conflicting, settings.timezone),
+        },
+      });
+    }
+
+    await this.auditService.record({
+      userId,
+      action: "UPDATE",
+      entityName: "Appointment",
+      entityId: id,
       ipAddress: ip,
     });
 
