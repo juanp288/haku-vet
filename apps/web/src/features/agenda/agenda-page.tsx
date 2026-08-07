@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { SPECIES_ICONS } from "@/features/patients/species-icons";
 import { addDays, buildSlotLabels, formatDateLabel, isInSlot, isOutsideHours } from "./agenda-utils";
 import { APPOINTMENT_STATUS_CLASSES, APPOINTMENT_STATUS_LABELS } from "./appointment-status-labels";
+import { NewAppointmentDialog } from "./new-appointment-dialog";
 import { useAgenda } from "./use-agenda";
 
 function AppointmentCard({ appointment }: { appointment: AgendaAppointment }) {
@@ -46,12 +47,14 @@ function VetColumn({
   openingHour,
   closingHour,
   slotMinutes,
+  onSlotClick,
 }: {
   column: AgendaVetColumn;
   slots: string[];
   openingHour: number;
   closingHour: number;
   slotMinutes: number;
+  onSlotClick: (vetId: string, time: string) => void;
 }) {
   const outsideHours = column.appointments.filter((appointment) =>
     isOutsideHours(appointment.startTimeLabel, openingHour, closingHour),
@@ -78,13 +81,15 @@ function VetColumn({
             return <AppointmentCard key={slot} appointment={appointment} />;
           }
           return (
-            <div
+            <button
               key={slot}
-              className="flex items-center gap-2 rounded-[11px] border border-dashed border-neutral-300 px-3 py-2 text-[12.5px] text-neutral-400"
+              type="button"
+              onClick={() => onSlotClick(column.vetId, slot)}
+              className="flex items-center gap-2 rounded-[11px] border border-dashed border-neutral-300 px-3 py-2 text-left text-[12.5px] text-neutral-400 hover:border-brand-300 hover:text-brand-700"
             >
               <span className="font-extrabold">{slot}</span>
               <span>Disponible</span>
-            </div>
+            </button>
           );
         })}
 
@@ -109,6 +114,8 @@ export function AgendaPage() {
   const [date, setDate] = useState<string | undefined>(undefined);
   const { data, isLoading } = useAgenda(date);
   const agenda = data?.body;
+
+  const [slotDialog, setSlotDialog] = useState<{ vetId: string; time: string } | null>(null);
 
   const slots = agenda ? buildSlotLabels(agenda.openingHour, agenda.closingHour, agenda.slotMinutes) : [];
 
@@ -172,9 +179,27 @@ export function AgendaPage() {
                   openingHour={agenda.openingHour}
                   closingHour={agenda.closingHour}
                   slotMinutes={agenda.slotMinutes}
+                  onSlotClick={(vetId, time) => setSlotDialog({ vetId, time })}
                 />
               ))}
             </div>
+          )}
+
+          {slotDialog && (
+            <NewAppointmentDialog
+              key={`${slotDialog.vetId}-${slotDialog.time}`}
+              open
+              onOpenChange={(next) => {
+                if (!next) {
+                  setSlotDialog(null);
+                }
+              }}
+              date={agenda.date}
+              vets={agenda.vets.map((v) => ({ vetId: v.vetId, vetName: v.vetName }))}
+              defaultVetId={slotDialog.vetId}
+              defaultTime={slotDialog.time}
+              defaultDurationMinutes={agenda.slotMinutes}
+            />
           )}
         </>
       )}

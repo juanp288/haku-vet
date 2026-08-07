@@ -9,5 +9,6 @@ import { PatientsService } from "./patients.service";
   imports: [TutorsModule, BreedsModule],
   controllers: [PatientsController],
   providers: [PatientsService, PatientsRepository],
+  exports: [PatientsRepository],
 })
 export class PatientsModule {}

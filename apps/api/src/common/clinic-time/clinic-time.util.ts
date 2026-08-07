@@ -34,6 +34,12 @@ export function formatTimeInTimezone(date: Date, timezone: string): string {
   }).format(date);
 }
 
+/** Par con `formatTimeInTimezone` — "08:30" → 510 minutos desde medianoche. */
+export function parseTimeLabelToMinutes(label: string): number {
+  const [hour, minute] = label.split(":").map(Number);
+  return (hour ?? 0) * 60 + (minute ?? 0);
+}
+
 /**
  * `birthDate` se guarda como fecha pura (medianoche UTC): sus componentes
  * calendario se leen directo en UTC, sin pasar por la zona de la clínica.

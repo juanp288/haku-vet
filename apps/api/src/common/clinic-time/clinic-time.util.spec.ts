@@ -9,6 +9,7 @@ import {
   getDayRangeInTimezone,
   getUtcInstantForZonedTime,
   parseDateParts,
+  parseTimeLabelToMinutes,
 } from "./clinic-time.util";
 
 describe("getDatePartsInTimezone", () => {
@@ -44,6 +45,14 @@ describe("formatTimeInTimezone", () => {
     expect(formatTimeInTimezone(new Date("2026-08-06T13:05:00.000Z"), "America/Bogota")).toBe(
       "08:05",
     );
+  });
+});
+
+describe("parseTimeLabelToMinutes", () => {
+  it("convierte HH:MM a minutos desde medianoche", () => {
+    expect(parseTimeLabelToMinutes("08:30")).toBe(510);
+    expect(parseTimeLabelToMinutes("00:00")).toBe(0);
+    expect(parseTimeLabelToMinutes("23:59")).toBe(1439);
   });
 });
 

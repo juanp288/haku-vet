@@ -1,5 +1,6 @@
 import { initContract } from "@ts-rest/core";
 import { z } from "zod";
+import { errorSchema } from "./common/errors";
 import { speciesSchema } from "./common/species";
 
 /** Debe permanecer sincronizado con el enum AppointmentStatus de schema.prisma (RN-04). */
@@ -72,6 +73,33 @@ export const getAgendaQuerySchema = z.object({
 });
 export type GetAgendaQuery = z.infer<typeof getAgendaQuerySchema>;
 
+/**
+ * C2: `date` + `time` (hora de pared de la clínica, "08:00") en vez de un
+ * `startsAt` ISO — así el frontend nunca convierte zonas horarias, igual
+ * que en C1: arma el formulario con los mismos strings que ya recibió de
+ * GET /appointments (la fecha del día que está viendo, la franja en la que
+ * hizo clic) y el backend hace la conversión a UTC con RN-19.
+ * `durationMinutes` se precarga con ClinicSettings.defaultAppointmentMin en
+ * el frontend y es editable; el backend calcula `endsAt`.
+ */
+export const createAppointmentSchema = z.object({
+  patientId: z.string().min(1, { message: "Debe seleccionar una mascota." }),
+  vetId: z.string().min(1, { message: "Debe seleccionar un veterinario." }),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." }),
+  time: z.string().regex(/^\d{2}:\d{2}$/, { message: "La hora debe tener el formato HH:MM." }),
+  durationMinutes: z
+    .number({ message: "La duración es obligatoria." })
+    .int()
+    .min(5, { message: "La duración mínima es 5 minutos." })
+    .max(480, { message: "La duración máxima es 8 horas." }),
+  type: appointmentTypeSchema.default("CONSULTA"),
+  reason: z.string().min(1, { message: "El motivo es obligatorio." }).max(200),
+  notes: z.string().max(2000).optional(),
+});
+export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
+
 const c = initContract();
 
 export const appointmentsContract = c.router({
@@ -81,6 +109,17 @@ export const appointmentsContract = c.router({
     query: getAgendaQuerySchema,
     responses: {
       200: agendaDaySchema,
+    },
+  },
+  create: {
+    method: "POST",
+    path: "/appointments",
+    body: createAppointmentSchema,
+    responses: {
+      201: agendaAppointmentSchema,
+      400: errorSchema,
+      404: errorSchema,
+      409: errorSchema,
     },
   },
 });
