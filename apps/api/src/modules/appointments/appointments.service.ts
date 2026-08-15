@@ -369,6 +369,7 @@ export class AppointmentsService {
       tutorName: primaryTutor
         ? `${primaryTutor.tutor.firstName} ${primaryTutor.tutor.lastName}`
         : "—",
+      consultationId: row.consultation?.id ?? null,
     };
   }
 }

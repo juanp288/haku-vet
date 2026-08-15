@@ -24,3 +24,14 @@ export function useUpdateConsultationDraft(id: string) {
     },
   });
 }
+
+/** D2: mismo patrón que useUpdateConsultationDraft, endpoint separado (AUXILIAR no tiene acceso al general). */
+export function useUpdateConsultationVitals(id: string) {
+  const queryClient = useQueryClient();
+  return tsr.consultations.updateVitals.useMutation({
+    onSuccess: (result) => {
+      queryClient.setQueryData(["consultation", id], { status: 200, body: result.body });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}

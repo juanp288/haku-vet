@@ -1,6 +1,7 @@
 "use client";
 
 import type { AgendaAppointment, AppointmentStatus } from "@vetclinic/contracts";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -60,8 +61,11 @@ export function AppointmentActionsDialog({
   const canCancel = APPOINTMENT_VALID_TRANSITIONS[appointment.status].includes("CANCELADA");
   const canMove = MOVABLE_APPOINTMENT_STATUSES.includes(appointment.status);
   const canCreateConsultation =
+    !appointment.consultationId &&
     CONSULTATION_CREATABLE_STATUSES.includes(appointment.status) &&
     (currentUser?.body.role === "VETERINARIO" || currentUser?.body.role === "ADMIN");
+  /** D2: RECEPCION nunca ve la historia clínica (RN-18) — no le ofrecemos un link que siempre le daría 403. */
+  const canViewConsultation = Boolean(appointment.consultationId) && currentUser?.body.role !== "RECEPCION";
 
   const handleStatusChange = (status: AgendaAppointment["status"]) => {
     changeStatus.mutate(
@@ -174,6 +178,12 @@ export function AppointmentActionsDialog({
             )}
             {createConsultationErrorMessage && (
               <p className="text-[13px] text-destructive">{createConsultationErrorMessage}</p>
+            )}
+
+            {canViewConsultation && appointment.consultationId && (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={`/consultas/${appointment.consultationId}`}>Ver consulta</Link>
+              </Button>
             )}
 
             {canMove && (

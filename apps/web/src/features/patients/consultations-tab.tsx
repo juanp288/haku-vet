@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,9 +42,10 @@ export function ConsultationsTab({ patientId }: ConsultationsTabProps) {
     <div>
       <div className="flex flex-col gap-2.5">
         {result.items.map((consultation) => (
-          <section
+          <Link
             key={consultation.id}
-            className="rounded-[var(--radius-lg)] border border-border bg-card p-[18px]"
+            href={`/consultas/${consultation.id}`}
+            className="block rounded-[var(--radius-lg)] border border-border bg-card p-[18px] hover:border-neutral-400"
           >
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-[15.5px] font-extrabold">
@@ -94,7 +96,7 @@ export function ConsultationsTab({ patientId }: ConsultationsTabProps) {
                 </span>
               )}
             </div>
-          </section>
+          </Link>
         ))}
       </div>
 

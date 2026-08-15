@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCurrentUser } from "@/features/auth/use-auth";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { CONSULTATION_STATUS_CLASSES, CONSULTATION_STATUS_LABELS } from "../patients/consultation-status-labels";
 import { useConsultation, useUpdateConsultationDraft } from "./use-consultations";
+import { VitalsEditor, VitalsReadOnly } from "./vitals-editor";
 
 const AUTOSAVE_DEBOUNCE_MS = 1200;
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -239,6 +241,7 @@ function ClosedConsultationView({ consultation }: { consultation: ConsultationDe
         <ReadOnlyField label="Tratamiento" value={consultation.treatment} />
       </div>
       <ReadOnlyField label="Prescripción" value={consultation.prescription} />
+      <VitalsReadOnly consultation={consultation} />
     </div>
   );
 }
@@ -248,8 +251,11 @@ interface ConsultationEditorProps {
 }
 
 export function ConsultationEditor({ consultationId }: ConsultationEditorProps) {
+  const { data: currentUser } = useCurrentUser();
   const { data, isLoading, isError, error } = useConsultation(consultationId);
   const consultation = data?.body;
+  const role = currentUser?.body.role;
+  const canEditSoap = role === "VETERINARIO" || role === "ADMIN";
 
   if (isLoading) {
     return (
@@ -294,7 +300,10 @@ export function ConsultationEditor({ consultationId }: ConsultationEditorProps) 
       {consultation.status === "CERRADA" ? (
         <ClosedConsultationView consultation={consultation} />
       ) : (
-        <SoapEditor key={consultation.id} consultation={consultation} />
+        <div className="grid gap-6">
+          {canEditSoap && <SoapEditor key={consultation.id} consultation={consultation} />}
+          <VitalsEditor key={consultation.id} consultation={consultation} />
+        </div>
       )}
     </div>
   );

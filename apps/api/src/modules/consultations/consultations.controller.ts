@@ -3,9 +3,11 @@ import type { Request } from "express";
 import {
   createConsultationSchema,
   updateConsultationDraftSchema,
+  updateVitalsSchema,
   type ConsultationDetail,
   type CreateConsultationInput,
   type UpdateConsultationDraftInput,
+  type UpdateVitalsInput,
 } from "@vetclinic/contracts";
 import type { JwtPayload } from "../../common/auth.constants";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -45,5 +47,17 @@ export class ConsultationsController {
     @Req() req: Request,
   ): Promise<ConsultationDetail> {
     return this.consultationsService.updateDraft(id, body, user, req.ip ?? "unknown");
+  }
+
+  /** RN-18 "Editar signos vitales (borrador)": ADMIN, VETERINARIO, AUXILIAR. No exige autoría (a diferencia de updateDraft). */
+  @Patch(":id/vitals")
+  @Roles("ADMIN", "VETERINARIO", "AUXILIAR")
+  updateVitals(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(updateVitalsSchema)) body: UpdateVitalsInput,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ): Promise<ConsultationDetail> {
+    return this.consultationsService.updateVitals(id, body, user, req.ip ?? "unknown");
   }
 }

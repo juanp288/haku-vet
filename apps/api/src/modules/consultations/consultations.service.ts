@@ -9,6 +9,7 @@ import type {
   ConsultationDetail,
   CreateConsultationInput,
   UpdateConsultationDraftInput,
+  UpdateVitalsInput,
 } from "@vetclinic/contracts";
 import type { Role } from "@vetclinic/db";
 import { AuditService } from "../../common/audit/audit.service";
@@ -115,6 +116,60 @@ export class ConsultationsService {
     return this.toDetailDto(consultation, user.role === "AUXILIAR");
   }
 
+  /**
+   * D2: "el rol AUXILIAR puede editar únicamente los campos de signos
+   * vitales de una consulta en borrador". No usa `findVisibleById` (RN-07)
+   * a propósito: AUXILIAR nunca es autor de una consulta, así que ese
+   * filtro le bloquearía siempre el acceso — registrar un signo vital no
+   * requiere poder ver el resto de la historia clínica.
+   */
+  async updateVitals(
+    id: string,
+    input: UpdateVitalsInput,
+    user: { sub: string; role: Role },
+    ip: string,
+  ): Promise<ConsultationDetail> {
+    const existing = await this.consultationsRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundException("La consulta no existe.");
+    }
+    if (existing.status === "CERRADA") {
+      throw new UnprocessableEntityException(
+        "Esta consulta está cerrada y no se puede modificar.",
+      );
+    }
+
+    const updated = await this.consultationsRepository.updateDraft(id, {
+      ...(input.weightKg !== undefined ? { weightKg: input.weightKg } : {}),
+      ...(input.temperatureC !== undefined ? { temperatureC: input.temperatureC } : {}),
+      ...(input.heartRate !== undefined ? { heartRate: input.heartRate } : {}),
+      ...(input.respiratoryRate !== undefined ? { respiratoryRate: input.respiratoryRate } : {}),
+      ...(input.bodyConditionScore !== undefined
+        ? { bodyConditionScore: input.bodyConditionScore }
+        : {}),
+      ...(input.mucousMembranes !== undefined
+        ? { mucousMembranes: normalize(input.mucousMembranes) }
+        : {}),
+      ...(input.capillaryRefill !== undefined ? { capillaryRefill: input.capillaryRefill } : {}),
+    });
+
+    if (!updated) {
+      throw new ConflictException(
+        "La consulta se cerró mientras se guardaba. Refresca para ver el estado actual.",
+      );
+    }
+
+    await this.auditService.record({
+      userId: user.sub,
+      action: "UPDATE",
+      entityName: "Consultation",
+      entityId: id,
+      ipAddress: ip,
+    });
+
+    return this.toDetailDto(updated, user.role === "AUXILIAR");
+  }
+
   /** D1: autoguardado del borrador. RN-05: una consulta CERRADA es inmutable. */
   async updateDraft(
     id: string,
@@ -178,7 +233,14 @@ export class ConsultationsService {
     return this.toDetailDto(updated, user.role === "AUXILIAR");
   }
 
-  private toDetailDto(row: ConsultationDetailRow, onlyVitals: boolean): ConsultationDetail {
+  private async toDetailDto(
+    row: ConsultationDetailRow,
+    onlyVitals: boolean,
+  ): Promise<ConsultationDetail> {
+    const previousWeight = await this.consultationsRepository.findLatestClosedWeight(
+      row.patientId,
+      row.id,
+    );
     return {
       id: row.id,
       patientId: row.patient.id,
@@ -198,6 +260,7 @@ export class ConsultationsService {
       treatment: onlyVitals ? null : row.treatment,
       prescription: onlyVitals ? null : row.prescription,
       weightKg: row.weightKg ? row.weightKg.toNumber() : null,
+      previousWeightKg: previousWeight ? previousWeight.toNumber() : null,
       temperatureC: row.temperatureC ? row.temperatureC.toNumber() : null,
       heartRate: row.heartRate,
       respiratoryRate: row.respiratoryRate,

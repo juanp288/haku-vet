@@ -39,6 +39,8 @@ export const agendaAppointmentSchema = z.object({
   patientName: z.string(),
   patientSpecies: speciesSchema,
   tutorName: z.string(),
+  /** D2: null si todavía no se creó una consulta desde esta cita (D1). */
+  consultationId: z.string().nullable(),
 });
 export type AgendaAppointment = z.infer<typeof agendaAppointmentSchema>;
 

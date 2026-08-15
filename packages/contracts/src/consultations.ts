@@ -67,12 +67,43 @@ export const createConsultationSchema = z
 export type CreateConsultationInput = z.infer<typeof createConsultationSchema>;
 
 /**
+ * D2: "un valor fuera de rango fisiológico advierte pero no bloquea (puede
+ * ser real)" — por eso estos números NO son límites `.min()/.max()` en el
+ * schema (eso sí bloquearía). Son la referencia que usa el frontend para
+ * mostrar la advertencia; `bodyConditionScore` es la única excepción real
+ * porque 1–9 es una escala cerrada, no una medición fisiológica que pueda
+ * legítimamente salirse del rango.
+ */
+export const VITAL_SIGN_RANGES = {
+  weightKg: { min: 0.05, max: 120, unit: "kg" },
+  temperatureC: { min: 30, max: 45, unit: "°C" },
+  heartRate: { min: 20, max: 300, unit: "lpm" },
+  respiratoryRate: { min: 5, max: 150, unit: "rpm" },
+  bodyConditionScore: { min: 1, max: 9, unit: "" },
+} as const;
+
+const vitalSignsShape = {
+  weightKg: z.number().positive().nullable().optional(),
+  temperatureC: z.number().positive().nullable().optional(),
+  heartRate: z.number().int().positive().nullable().optional(),
+  respiratoryRate: z.number().int().positive().nullable().optional(),
+  bodyConditionScore: z
+    .number()
+    .int()
+    .min(VITAL_SIGN_RANGES.bodyConditionScore.min)
+    .max(VITAL_SIGN_RANGES.bodyConditionScore.max)
+    .nullable()
+    .optional(),
+  mucousMembranes: z.string().max(200).nullable().optional(),
+  capillaryRefill: z.number().positive().nullable().optional(),
+};
+
+/**
  * D1: autoguardado del borrador (cada 30s y al cambiar de campo, según el
  * frontend). Todos los campos son opcionales — el frontend solo envía lo
  * que cambió. El backend rechaza esto si la consulta ya está CERRADA
  * (RN-05). Incluye los campos de signos vitales porque VETERINARIO también
- * puede editarlos (RN-18); D2 decidirá cómo AUXILIAR obtiene acceso
- * restringido a este mismo formulario.
+ * puede editarlos (RN-18) — para AUXILIAR, ver `updateVitalsSchema`.
  */
 export const updateConsultationDraftSchema = z.object({
   reason: z.string().min(1).max(500).optional(),
@@ -83,13 +114,7 @@ export const updateConsultationDraftSchema = z.object({
   diagnosis: z.string().max(2000).nullable().optional(),
   treatment: z.string().max(2000).nullable().optional(),
   prescription: z.string().max(2000).nullable().optional(),
-  weightKg: z.number().positive().nullable().optional(),
-  temperatureC: z.number().nullable().optional(),
-  heartRate: z.number().int().positive().nullable().optional(),
-  respiratoryRate: z.number().int().positive().nullable().optional(),
-  bodyConditionScore: z.number().int().min(1).max(9).nullable().optional(),
-  mucousMembranes: z.string().max(200).nullable().optional(),
-  capillaryRefill: z.number().positive().nullable().optional(),
+  ...vitalSignsShape,
   nextControlAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." })
@@ -97,6 +122,16 @@ export const updateConsultationDraftSchema = z.object({
     .optional(),
 });
 export type UpdateConsultationDraftInput = z.infer<typeof updateConsultationDraftSchema>;
+
+/**
+ * D2: "el rol AUXILIAR puede editar únicamente los campos de signos
+ * vitales de una consulta en borrador" — mismos validadores que la parte
+ * de signos vitales de `updateConsultationDraftSchema`, pero sin
+ * reason/SOAP/diagnóstico/etc., así que ni siquiera es posible enviarlos
+ * por este endpoint (no hace falta lógica extra para rechazarlos).
+ */
+export const updateVitalsSchema = z.object(vitalSignsShape);
+export type UpdateVitalsInput = z.infer<typeof updateVitalsSchema>;
 
 /**
  * D1: detalle completo para el editor SOAP. `reason`/SOAP/diagnóstico
@@ -122,6 +157,8 @@ export const consultationDetailSchema = z.object({
   treatment: z.string().nullable(),
   prescription: z.string().nullable(),
   weightKg: z.number().nullable(),
+  /** D2: "el peso se muestra junto al último registrado y su variación porcentual" — último peso de una consulta CERRADA anterior de este paciente. */
+  previousWeightKg: z.number().nullable(),
   temperatureC: z.number().nullable(),
   heartRate: z.number().nullable(),
   respiratoryRate: z.number().nullable(),
@@ -165,6 +202,25 @@ export const consultationsContract = c.router({
     path: "/consultations/:id",
     pathParams: z.object({ id: z.string() }),
     body: updateConsultationDraftSchema,
+    responses: {
+      200: consultationDetailSchema,
+      404: errorSchema,
+      409: errorSchema,
+      422: errorSchema,
+    },
+  },
+  /**
+   * RN-18 "Editar signos vitales (borrador)": ADMIN, VETERINARIO, AUXILIAR.
+   * A diferencia de `updateDraft`, no exige que quien llama sea el autor de
+   * la consulta ni ADMIN (RN-07 es sobre visibilidad del contenido clínico,
+   * no sobre quién puede registrar una medición) — solo que exista y siga
+   * en BORRADOR.
+   */
+  updateVitals: {
+    method: "PATCH",
+    path: "/consultations/:id/vitals",
+    pathParams: z.object({ id: z.string() }),
+    body: updateVitalsSchema,
     responses: {
       200: consultationDetailSchema,
       404: errorSchema,

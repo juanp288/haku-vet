@@ -16,7 +16,7 @@ const APPOINTMENT_ROW_INCLUDE = {
     },
   },
   consultation: {
-    select: { status: true },
+    select: { id: true, status: true },
   },
 } satisfies Prisma.AppointmentInclude;
 

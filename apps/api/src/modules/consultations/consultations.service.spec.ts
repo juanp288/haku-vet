@@ -5,7 +5,11 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CreateConsultationInput, UpdateConsultationDraftInput } from "@vetclinic/contracts";
+import type {
+  CreateConsultationInput,
+  UpdateConsultationDraftInput,
+  UpdateVitalsInput,
+} from "@vetclinic/contracts";
 import { Prisma } from "@vetclinic/db";
 import type { AuditService } from "../../common/audit/audit.service";
 import type { AppointmentRow, AppointmentsRepository } from "../appointments/appointments.repository";
@@ -86,6 +90,8 @@ describe("ConsultationsService", () => {
   let consultationsRepository: {
     create: ReturnType<typeof vi.fn>;
     findVisibleById: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    findLatestClosedWeight: ReturnType<typeof vi.fn>;
     updateDraft: ReturnType<typeof vi.fn>;
   };
   let appointmentsRepository: {
@@ -100,6 +106,8 @@ describe("ConsultationsService", () => {
     consultationsRepository = {
       create: vi.fn().mockResolvedValue(buildConsultationRow()),
       findVisibleById: vi.fn().mockResolvedValue(buildConsultationRow()),
+      findById: vi.fn().mockResolvedValue(buildConsultationRow()),
+      findLatestClosedWeight: vi.fn().mockResolvedValue(null),
       updateDraft: vi
         .fn()
         .mockImplementation((id: string, data: Record<string, unknown>) =>
@@ -181,7 +189,7 @@ describe("ConsultationsService", () => {
 
     it("rechaza si la cita ya tiene una consulta asociada", async () => {
       appointmentsRepository.findById.mockResolvedValue(
-        buildAppointment({ consultation: { status: "BORRADOR" } }),
+        buildAppointment({ consultation: { id: "existing_consult", status: "BORRADOR" } }),
       );
 
       await expect(service.create(buildCreateInput(), USER_ID, IP)).rejects.toThrow(ConflictException);
@@ -377,6 +385,131 @@ describe("ConsultationsService", () => {
       expect(consultationsRepository.updateDraft).toHaveBeenCalledWith("consult_1", {
         nextControlAt: null,
       });
+    });
+  });
+
+  describe("updateVitals (D2)", () => {
+    function buildVitalsInput(overrides: Partial<UpdateVitalsInput> = {}): UpdateVitalsInput {
+      return { weightKg: 22.6, ...overrides };
+    }
+
+    it("AUXILIAR registra signos vitales en un borrador que NO es suyo (sin chequeo de autoría, a diferencia de updateDraft)", async () => {
+      consultationsRepository.findById.mockResolvedValue(
+        buildConsultationRow({ vetId: OTHER_USER_ID }),
+      );
+
+      const result = await service.updateVitals(
+        "consult_1",
+        buildVitalsInput(),
+        { sub: "aux_1", role: "AUXILIAR" },
+        IP,
+      );
+
+      expect(consultationsRepository.updateDraft).toHaveBeenCalledWith("consult_1", {
+        weightKg: 22.6,
+      });
+      expect(result.id).toBe("consult_1");
+      expect(audit.record).toHaveBeenCalledWith({
+        userId: "aux_1",
+        action: "UPDATE",
+        entityName: "Consultation",
+        entityId: "consult_1",
+        ipAddress: IP,
+      });
+    });
+
+    it("la respuesta para AUXILIAR queda redactada a solo signos vitales", async () => {
+      const result = await service.updateVitals(
+        "consult_1",
+        buildVitalsInput(),
+        { sub: "aux_1", role: "AUXILIAR" },
+        IP,
+      );
+      expect(result.reason).toBeNull();
+      expect(result.subjective).toBeNull();
+    });
+
+    it("VETERINARIO también puede usar este endpoint (RN-18 lo permite)", async () => {
+      await service.updateVitals(
+        "consult_1",
+        buildVitalsInput(),
+        { sub: USER_ID, role: "VETERINARIO" },
+        IP,
+      );
+      expect(consultationsRepository.updateDraft).toHaveBeenCalled();
+    });
+
+    it("RN-05: rechaza si la consulta ya está CERRADA", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildConsultationRow({ status: "CERRADA" }));
+
+      await expect(
+        service.updateVitals("consult_1", buildVitalsInput(), { sub: "aux_1", role: "AUXILIAR" }, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.updateDraft).not.toHaveBeenCalled();
+    });
+
+    it("404 si la consulta no existe", async () => {
+      consultationsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateVitals("consult_x", buildVitalsInput(), { sub: "aux_1", role: "AUXILIAR" }, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("409 si se cerró entre la lectura y la escritura (carrera)", async () => {
+      consultationsRepository.updateDraft.mockResolvedValue(null);
+
+      await expect(
+        service.updateVitals("consult_1", buildVitalsInput(), { sub: "aux_1", role: "AUXILIAR" }, IP),
+      ).rejects.toThrow(ConflictException);
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it("solo envía al repository los campos de signos vitales presentes (nunca reason/SOAP, ni siquiera si vinieran en el input)", async () => {
+      await service.updateVitals(
+        "consult_1",
+        { heartRate: 110, respiratoryRate: 24 },
+        { sub: "aux_1", role: "AUXILIAR" },
+        IP,
+      );
+      expect(consultationsRepository.updateDraft).toHaveBeenCalledWith("consult_1", {
+        heartRate: 110,
+        respiratoryRate: 24,
+      });
+    });
+
+    it("D2: no bloquea valores fuera del rango fisiológico de referencia (advierte, no rechaza)", async () => {
+      // 400 lpm está fuera de 20-300, pero es una medición real posible en una urgencia — no debe lanzar.
+      await expect(
+        service.updateVitals(
+          "consult_1",
+          { heartRate: 400 },
+          { sub: "aux_1", role: "AUXILIAR" },
+          IP,
+        ),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe("previousWeightKg (D2)", () => {
+    it("incluye el último peso de una consulta CERRADA anterior del mismo paciente", async () => {
+      consultationsRepository.findLatestClosedWeight.mockResolvedValue(new Prisma.Decimal("21.0"));
+
+      const result = await service.findById("consult_1", { sub: USER_ID, role: "VETERINARIO" });
+
+      expect(consultationsRepository.findLatestClosedWeight).toHaveBeenCalledWith(
+        "patient_1",
+        "consult_1",
+      );
+      expect(result.previousWeightKg).toBe(21.0);
+    });
+
+    it("null cuando el paciente no tiene consultas CERRADAS previas con peso", async () => {
+      consultationsRepository.findLatestClosedWeight.mockResolvedValue(null);
+
+      const result = await service.findById("consult_1", { sub: USER_ID, role: "VETERINARIO" });
+
+      expect(result.previousWeightKg).toBeNull();
     });
   });
 });

@@ -185,6 +185,23 @@ describe("AppointmentsService", () => {
     });
   });
 
+  it("D2: expone consultationId cuando la cita ya tiene una consulta asociada, null si no", async () => {
+    appointmentsRepository.findAppointmentsInRange.mockResolvedValue([
+      buildAppointmentRow({ id: "appt_sin_consulta", consultation: null }),
+      buildAppointmentRow({
+        id: "appt_con_consulta",
+        consultation: { id: "consult_1", status: "BORRADOR" },
+      }),
+    ]);
+
+    const result = await service.getAgenda({ date: "2026-08-06" });
+
+    const withoutConsultation = result.vets[0]?.appointments.find((a) => a.id === "appt_sin_consulta");
+    const withConsultation = result.vets[0]?.appointments.find((a) => a.id === "appt_con_consulta");
+    expect(withoutConsultation?.consultationId).toBeNull();
+    expect(withConsultation?.consultationId).toBe("consult_1");
+  });
+
   it("mascota sin acudiente principal no revienta — cae a un guion", async () => {
     appointmentsRepository.findAppointmentsInRange.mockResolvedValue([
       buildAppointmentRow({ patient: { id: "patient_1", name: "Luna", species: "CANINO", tutors: [] } }),
@@ -510,7 +527,7 @@ describe("AppointmentsService", () => {
 
     it("RN-04: una cita con consulta cerrada no admite cambios de estado", async () => {
       appointmentsRepository.findById.mockResolvedValue(
-        buildAppointmentRow({ status: "AGENDADA", consultation: { status: "CERRADA" } }),
+        buildAppointmentRow({ status: "AGENDADA", consultation: { id: "consult_x", status: "CERRADA" } }),
       );
 
       await expect(
@@ -588,7 +605,7 @@ describe("AppointmentsService", () => {
 
     it("una cita con consulta cerrada no se puede mover", async () => {
       appointmentsRepository.findById.mockResolvedValue(
-        buildAppointmentRow({ status: "AGENDADA", consultation: { status: "CERRADA" } }),
+        buildAppointmentRow({ status: "AGENDADA", consultation: { id: "consult_x", status: "CERRADA" } }),
       );
 
       await expect(
