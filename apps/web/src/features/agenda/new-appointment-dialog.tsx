@@ -8,7 +8,7 @@ import {
   type CreateAppointmentInput,
   type Species,
 } from "@vetclinic/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,14 @@ interface SelectedPatient {
   tutorName: string;
 }
 
+/** D2/UX: lo que la grilla de fondo necesita para "adivinar" qué franjas va a ocupar esta cita todavía sin guardar. */
+export interface PendingAppointmentPreview {
+  date: string;
+  vetId: string;
+  time: string;
+  durationMinutes: number;
+}
+
 interface NewAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,6 +58,7 @@ interface NewAppointmentDialogProps {
   defaultVetId: string;
   defaultTime: string;
   defaultDurationMinutes: number;
+  onPreviewChange?: (preview: PendingAppointmentPreview | null) => void;
 }
 
 function buildDefaultValues(
@@ -78,6 +87,7 @@ export function NewAppointmentDialog({
   defaultVetId,
   defaultTime,
   defaultDurationMinutes,
+  onPreviewChange,
 }: NewAppointmentDialogProps) {
   const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
   const [patientQuery, setPatientQuery] = useState("");
@@ -100,11 +110,34 @@ export function NewAppointmentDialog({
     control,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateAppointmentInput>({
     resolver: zodResolver(createAppointmentSchema),
     defaultValues: buildDefaultValues(date, defaultVetId, defaultTime, defaultDurationMinutes),
   });
+
+  const watchedDate = watch("date");
+  const watchedVetId = watch("vetId");
+  const watchedTime = watch("time");
+  const watchedDurationMinutes = watch("durationMinutes");
+
+  // Le avisa a la grilla de fondo (AgendaPage) qué franja está a punto de
+  // ocupar esta cita todavía sin guardar, para que se vea coherente con lo
+  // que se está seleccionando acá — sin esto, un slot vacío que en realidad
+  // va a quedar cubierto por la duración elegida seguía viéndose "Disponible".
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    onPreviewChange?.({
+      date: watchedDate,
+      vetId: watchedVetId,
+      time: watchedTime,
+      durationMinutes: watchedDurationMinutes,
+    });
+    return () => onPreviewChange?.(null);
+  }, [open, watchedDate, watchedVetId, watchedTime, watchedDurationMinutes, onPreviewChange]);
 
   const closeAndReset = () => {
     onOpenChange(false);

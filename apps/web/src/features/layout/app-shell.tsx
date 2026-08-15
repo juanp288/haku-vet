@@ -23,15 +23,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen items-stretch">
+    // El scroll interno (h-screen + overflow-hidden en el layout, overflow-y-auto
+    // en <main>) es solo para pantalla — al imprimir (D6) se revierte a flujo
+    // normal (print:h-auto print:overflow-visible) para que el contenido no
+    // quede recortado a una sola altura de viewport en el PDF.
+    <div className="flex h-screen items-stretch overflow-hidden print:h-auto print:overflow-visible">
       <div className="print:hidden">
         <AppNav />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
         <div className="print:hidden">
           <AppHeader />
         </div>
-        <main className="flex-1">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto print:h-auto print:overflow-visible">
+          {children}
+        </main>
       </div>
     </div>
   );

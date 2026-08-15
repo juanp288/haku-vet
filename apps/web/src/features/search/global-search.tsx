@@ -2,21 +2,45 @@
 
 import { MagnifyingGlass } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { SPECIES_LABELS } from "@/lib/species-labels";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { useSearch } from "./use-search";
 
 export function GlobalSearch() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
   const debounced = useDebouncedValue(input, 250).trim();
   const { data, isFetching } = useSearch(debounced);
   const results = data?.body ?? [];
-  const showPanel = debounced.length > 0;
+  // "isOpen" es lo único que cierra el panel — antes dependía solo de que
+  // hubiera texto en la caja, así que nunca se cerraba solo (ni al elegir un
+  // resultado, ni al hacer clic afuera): la única forma de quitarlo era
+  // borrar el texto a mano.
+  const showPanel = isOpen && debounced.length > 0;
+
+  const closePanel = () => {
+    setIsOpen(false);
+    setInput("");
+  };
+
+  useEffect(() => {
+    if (!showPanel) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showPanel]);
 
   return (
-    <div className="relative w-full max-w-[420px]">
+    <div ref={containerRef} className="relative w-full max-w-[420px]">
       <MagnifyingGlass
         size={17}
         weight="duotone"
@@ -27,7 +51,16 @@ export function GlobalSearch() {
         placeholder="Buscar mascota, acudiente, teléfono o documento…"
         className="pl-9"
         value={input}
-        onChange={(event) => setInput(event.target.value)}
+        onChange={(event) => {
+          setInput(event.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
       />
 
       {showPanel && (
@@ -42,6 +75,7 @@ export function GlobalSearch() {
                 <li key={result.patientId}>
                   <Link
                     href={`/pacientes/${result.patientId}`}
+                    onClick={closePanel}
                     className="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2 text-[13.5px] hover:bg-muted"
                   >
                     <span className="min-w-0">

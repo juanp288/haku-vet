@@ -83,7 +83,15 @@ export function TutorDetail({ tutor, patients }: TutorDetailProps) {
             {patients.length}
           </span>
           <span className="min-w-0 flex-1" />
-          <PatientFormDialog tutorId={tutor.id} tutorName={fullName} tutorDocument={document} />
+          {/*
+            key={tutor.id} fuerza un remount cuando cambia el acudiente de la
+            ficha abierta. Sin esto, react-hook-form conserva su estado
+            interno entre selecciones distintas (`defaultValues` solo se
+            evalúa al montar, no se resincroniza con la prop `tutorId`), y la
+            mascota nueva quedaba vinculada al PRIMER acudiente que abrió el
+            diálogo alguna vez, sin importar cuál ficha estuviera abierta.
+          */}
+          <PatientFormDialog key={tutor.id} tutorId={tutor.id} tutorName={fullName} tutorDocument={document} />
         </div>
 
         <div className="flex flex-col gap-2.5">

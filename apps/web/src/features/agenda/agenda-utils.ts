@@ -34,7 +34,7 @@ export function formatShortDateLabel(date: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function timeLabelToMinutes(label: string): number {
+export function timeLabelToMinutes(label: string): number {
   const [hour, minute] = label.split(":").map(Number);
   return (hour ?? 0) * 60 + (minute ?? 0);
 }
@@ -64,4 +64,26 @@ export function isOutsideHours(
 ): boolean {
   const minutes = timeLabelToMinutes(appointmentTime);
   return minutes < openingHour * 60 || minutes >= closingHour * 60;
+}
+
+/**
+ * true si el slot [slotLabel, slotLabel+slotMinutes) se solapa con el rango
+ * [rangeStartTime, rangeStartTime+rangeDurationMinutes) de una cita que se
+ * está creando en el diálogo (todavía sin guardar) — mismo criterio de
+ * solapamiento que RN-01 en el backend, solo que en minutos en vez de
+ * instantes UTC. Con valores inválidos (ej. duración vacía mientras se
+ * edita) las comparaciones con NaN dan `false`, así que simplemente no
+ * resalta nada — no revienta.
+ */
+export function isSlotCoveredByRange(
+  slotLabel: string,
+  slotMinutes: number,
+  rangeStartTime: string,
+  rangeDurationMinutes: number,
+): boolean {
+  const slotStart = timeLabelToMinutes(slotLabel);
+  const slotEnd = slotStart + slotMinutes;
+  const rangeStart = timeLabelToMinutes(rangeStartTime);
+  const rangeEnd = rangeStart + rangeDurationMinutes;
+  return slotStart < rangeEnd && rangeStart < slotEnd;
 }

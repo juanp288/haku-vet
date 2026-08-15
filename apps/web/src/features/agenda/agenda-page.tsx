@@ -8,10 +8,17 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SPECIES_ICONS } from "@/features/patients/species-icons";
-import { addDays, buildSlotLabels, formatDateLabel, isInSlot, isOutsideHours } from "./agenda-utils";
+import {
+  addDays,
+  buildSlotLabels,
+  formatDateLabel,
+  isInSlot,
+  isOutsideHours,
+  isSlotCoveredByRange,
+} from "./agenda-utils";
 import { AppointmentActionsDialog } from "./appointment-actions-dialog";
 import { APPOINTMENT_STATUS_CLASSES, APPOINTMENT_STATUS_LABELS } from "./appointment-status-labels";
-import { NewAppointmentDialog } from "./new-appointment-dialog";
+import { NewAppointmentDialog, type PendingAppointmentPreview } from "./new-appointment-dialog";
 import { useAgenda } from "./use-agenda";
 
 function AppointmentCard({
@@ -68,6 +75,7 @@ function VetColumn({
   slotMinutes,
   onSlotClick,
   onManage,
+  pendingPreview,
 }: {
   column: AgendaVetColumn;
   slots: string[];
@@ -76,6 +84,8 @@ function VetColumn({
   slotMinutes: number;
   onSlotClick: (vetId: string, time: string) => void;
   onManage: (appointment: AgendaAppointment) => void;
+  /** Solo se pasa cuando el diálogo abierto apunta a ESTE veterinario (y a este día) — ver AgendaPage. */
+  pendingPreview: { time: string; durationMinutes: number } | null;
 }) {
   const outsideHours = column.appointments.filter((appointment) =>
     isOutsideHours(appointment.startTimeLabel, openingHour, closingHour),
@@ -101,6 +111,22 @@ function VetColumn({
           if (appointment) {
             return <AppointmentCard key={slot} appointment={appointment} onManage={onManage} />;
           }
+
+          const isCoveredByPending =
+            pendingPreview !== null &&
+            isSlotCoveredByRange(slot, slotMinutes, pendingPreview.time, pendingPreview.durationMinutes);
+          if (isCoveredByPending) {
+            return (
+              <div
+                key={slot}
+                className="flex items-center gap-2 rounded-[11px] border border-dashed border-neutral-200 bg-neutral-100 px-3 py-2 text-left text-[12.5px] text-neutral-400"
+              >
+                <span className="font-extrabold">{slot}</span>
+                <span>No disponible</span>
+              </div>
+            );
+          }
+
           return (
             <button
               key={slot}
@@ -138,6 +164,7 @@ export function AgendaPage() {
 
   const [slotDialog, setSlotDialog] = useState<{ vetId: string; time: string } | null>(null);
   const [manageAppointment, setManageAppointment] = useState<AgendaAppointment | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<PendingAppointmentPreview | null>(null);
 
   const slots = agenda ? buildSlotLabels(agenda.openingHour, agenda.closingHour, agenda.slotMinutes) : [];
 
@@ -203,6 +230,13 @@ export function AgendaPage() {
                   slotMinutes={agenda.slotMinutes}
                   onSlotClick={(vetId, time) => setSlotDialog({ vetId, time })}
                   onManage={setManageAppointment}
+                  pendingPreview={
+                    pendingPreview &&
+                    pendingPreview.vetId === column.vetId &&
+                    pendingPreview.date === agenda.date
+                      ? { time: pendingPreview.time, durationMinutes: pendingPreview.durationMinutes }
+                      : null
+                  }
                 />
               ))}
             </div>
@@ -235,6 +269,7 @@ export function AgendaPage() {
               defaultVetId={slotDialog.vetId}
               defaultTime={slotDialog.time}
               defaultDurationMinutes={agenda.slotMinutes}
+              onPreviewChange={setPendingPreview}
             />
           )}
         </>
