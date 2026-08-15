@@ -2,6 +2,7 @@ import { initContract } from "@ts-rest/core";
 import { appointmentsContract } from "./appointments";
 import { authContract } from "./auth";
 import { breedsContract } from "./breeds";
+import { consultationsContract } from "./consultations";
 import { patientsContract } from "./patients";
 import { searchContract } from "./search";
 import { tutorsContract } from "./tutors";
@@ -27,4 +28,5 @@ export const apiContract = c.router({
   breeds: breedsContract,
   patients: patientsContract,
   appointments: appointmentsContract,
+  consultations: consultationsContract,
 });

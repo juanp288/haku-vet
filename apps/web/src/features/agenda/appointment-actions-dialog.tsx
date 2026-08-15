@@ -1,6 +1,7 @@
 "use client";
 
-import type { AgendaAppointment } from "@vetclinic/contracts";
+import type { AgendaAppointment, AppointmentStatus } from "@vetclinic/contracts";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +14,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCurrentUser } from "@/features/auth/use-auth";
+import { useCreateConsultation } from "@/features/consultations/use-consultations";
 import { getApiErrorDetails, getApiErrorMessage } from "@/lib/api-error";
 import { APPOINTMENT_STATUS_CLASSES, APPOINTMENT_STATUS_LABELS } from "./appointment-status-labels";
 import { APPOINTMENT_VALID_TRANSITIONS, MOVABLE_APPOINTMENT_STATUSES } from "./appointment-transitions";
 import { useChangeAppointmentStatus, useMoveAppointment } from "./use-appointments";
+
+/** D1: "desde una cita en EN_SALA o EN_ATENCION, un botón crea la consulta". */
+const CONSULTATION_CREATABLE_STATUSES: AppointmentStatus[] = ["EN_SALA", "EN_ATENCION"];
 
 interface AppointmentActionsDialogProps {
   open: boolean;
@@ -36,6 +42,9 @@ export function AppointmentActionsDialog({
 
   const changeStatus = useChangeAppointmentStatus();
   const moveAppointment = useMoveAppointment();
+  const createConsultation = useCreateConsultation();
+  const { data: currentUser } = useCurrentUser();
+  const router = useRouter();
 
   const closeAndReset = () => {
     onOpenChange(false);
@@ -50,6 +59,9 @@ export function AppointmentActionsDialog({
   );
   const canCancel = APPOINTMENT_VALID_TRANSITIONS[appointment.status].includes("CANCELADA");
   const canMove = MOVABLE_APPOINTMENT_STATUSES.includes(appointment.status);
+  const canCreateConsultation =
+    CONSULTATION_CREATABLE_STATUSES.includes(appointment.status) &&
+    (currentUser?.body.role === "VETERINARIO" || currentUser?.body.role === "ADMIN");
 
   const handleStatusChange = (status: AgendaAppointment["status"]) => {
     changeStatus.mutate(
@@ -74,6 +86,23 @@ export function AppointmentActionsDialog({
       { onSuccess: () => closeAndReset() },
     );
   };
+
+  const handleCreateConsultation = () => {
+    createConsultation.mutate(
+      { body: { appointmentId: appointment.id, reason: appointment.reason } },
+      {
+        onSuccess: (result) => {
+          onOpenChange(false);
+          router.push(`/consultas/${result.body.id}`);
+        },
+      },
+    );
+  };
+
+  const createConsultationErrorMessage = getApiErrorMessage(
+    createConsultation.error,
+    "No se pudo crear la consulta. Intente de nuevo.",
+  );
 
   const moveConflict = getApiErrorDetails(moveAppointment.error)?.["conflictingAppointment"] as
     | AgendaAppointment
@@ -130,6 +159,21 @@ export function AppointmentActionsDialog({
                   </Button>
                 ))}
               </div>
+            )}
+
+            {canCreateConsultation && (
+              <Button
+                type="button"
+                variant="positive"
+                size="sm"
+                disabled={createConsultation.isPending}
+                onClick={handleCreateConsultation}
+              >
+                {createConsultation.isPending ? "Creando…" : "Crear consulta"}
+              </Button>
+            )}
+            {createConsultationErrorMessage && (
+              <p className="text-[13px] text-destructive">{createConsultationErrorMessage}</p>
             )}
 
             {canMove && (

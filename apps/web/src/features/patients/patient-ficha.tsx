@@ -2,6 +2,7 @@
 
 import { WarningCircle } from "@phosphor-icons/react/dist/csr/WarningCircle";
 import { useState } from "react";
+import { NewConsultationDialog } from "@/features/consultations/new-consultation-dialog";
 import { getAvatarColors } from "@/lib/avatar";
 import { SPECIES_LABELS } from "@/lib/species-labels";
 import { ConsultationsTab } from "./consultations-tab";
@@ -138,7 +139,16 @@ export function PatientFicha({ patientId }: PatientFichaProps) {
         ))}
       </div>
 
-      {tab === "historia" && <ConsultationsTab patientId={patientId} />}
+      {tab === "historia" && (
+        <div>
+          {!patient.isDeceased && (
+            <div className="mb-3 flex justify-end">
+              <NewConsultationDialog patientId={patientId} />
+            </div>
+          )}
+          <ConsultationsTab patientId={patientId} />
+        </div>
+      )}
       {tab === "vacunas" && <EmptyTab message="Aún no hay vacunas registradas (historia E1)." />}
       {tab === "citas" && <EmptyTab message="Aún no hay citas registradas (historia C1)." />}
       {tab === "adjuntos" && <EmptyTab message="Aún no hay adjuntos (historia F1)." />}

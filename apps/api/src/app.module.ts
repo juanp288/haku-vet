@@ -10,6 +10,7 @@ import { PrismaModule } from "./common/prisma/prisma.module";
 import { AppointmentsModule } from "./modules/appointments/appointments.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BreedsModule } from "./modules/breeds/breeds.module";
+import { ConsultationsModule } from "./modules/consultations/consultations.module";
 import { PatientsModule } from "./modules/patients/patients.module";
 import { SearchModule } from "./modules/search/search.module";
 import { TutorsModule } from "./modules/tutors/tutors.module";
@@ -29,6 +30,7 @@ import { TutorsModule } from "./modules/tutors/tutors.module";
     PatientsModule,
     SearchModule,
     AppointmentsModule,
+    ConsultationsModule,
   ],
   controllers: [AppController],
   providers: [
