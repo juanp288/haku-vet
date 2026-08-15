@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import {
   createConsultationSchema,
@@ -59,5 +59,17 @@ export class ConsultationsController {
     @Req() req: Request,
   ): Promise<ConsultationDetail> {
     return this.consultationsService.updateVitals(id, body, user, req.ip ?? "unknown");
+  }
+
+  /** RN-18 "Crear y cerrar consultas": ADMIN, VETERINARIO. RN-06: exige reason/objective/assessment; deja la cita en ATENDIDA. */
+  @Post(":id/close")
+  @HttpCode(HttpStatus.OK)
+  @Roles("ADMIN", "VETERINARIO")
+  close(
+    @Param("id") id: string,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ): Promise<ConsultationDetail> {
+    return this.consultationsService.close(id, user, req.ip ?? "unknown");
   }
 }

@@ -233,6 +233,42 @@ export class ConsultationsService {
     return this.toDetailDto(updated, user.role === "AUXILIAR");
   }
 
+  /**
+   * D3: "cerrar la consulta para que quede como registro clínico
+   * definitivo". RN-06: exige reason/objective/assessment diligenciados;
+   * el resto (closedAt, cita→ATENDIDA, Reminder CONTROL, AuditLog CLOSE)
+   * ocurre atómicamente en el repository. Mismo autor-o-ADMIN que
+   * updateDraft (RN-07) — otro VETERINARIO no puede cerrar un borrador
+   * ajeno, igual que no puede editarlo.
+   */
+  async close(id: string, user: { sub: string; role: Role }, ip: string): Promise<ConsultationDetail> {
+    const existing = await this.consultationsRepository.findVisibleById(
+      id,
+      user.sub,
+      user.role === "ADMIN",
+    );
+    if (!existing) {
+      throw new NotFoundException("La consulta no existe.");
+    }
+    if (existing.status === "CERRADA") {
+      throw new UnprocessableEntityException("Esta consulta ya está cerrada.");
+    }
+    if (!existing.reason?.trim() || !existing.objective?.trim() || !existing.assessment?.trim()) {
+      throw new UnprocessableEntityException(
+        "Para cerrar la consulta debe diligenciar el motivo, el examen objetivo y la evaluación.",
+      );
+    }
+
+    const result = await this.consultationsRepository.close(id, user.sub, ip);
+    if (result.outcome === "conflict") {
+      throw new ConflictException(
+        "La consulta ya se cerró. Refresca para ver el estado actual.",
+      );
+    }
+
+    return this.toDetailDto(result.consultation, false);
+  }
+
   private async toDetailDto(
     row: ConsultationDetailRow,
     onlyVitals: boolean,

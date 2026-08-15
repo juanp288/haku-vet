@@ -35,3 +35,16 @@ export function useUpdateConsultationVitals(id: string) {
     },
   });
 }
+
+/** D3: al cerrar, la respuesta ya trae status=CERRADA — el editor cambia solo a la vista de solo lectura. */
+export function useCloseConsultation(id: string) {
+  const queryClient = useQueryClient();
+  return tsr.consultations.close.useMutation({
+    onSuccess: (result) => {
+      queryClient.setQueryData(["consultation", id], { status: 200, body: result.body });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda-week"] });
+    },
+  });
+}

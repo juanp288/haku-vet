@@ -136,4 +136,76 @@ export class ConsultationsRepository {
       include: CONSULTATION_DETAIL_INCLUDE,
     });
   }
+
+  /**
+   * D3/RN-06: las 4 escrituras (cierre, cita→ATENDIDA, Reminder CONTROL,
+   * AuditLog) van en una sola transacción — por eso el AuditLog se escribe
+   * acá directo con `tx`, en vez de vía AuditService (que siempre usa el
+   * cliente singleton y no podría participar de esta transacción).
+   * Concurrencia optimista igual que updateDraft: si `count` da 0, ya no
+   * estaba en BORRADOR (alguien más la cerró en el medio).
+   */
+  async close(id: string, userId: string, ip: string): Promise<CloseConsultationResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.consultation.updateMany({
+        where: { id, status: "BORRADOR" },
+        data: { status: "CERRADA", closedAt: new Date() },
+      });
+      if (result.count === 0) {
+        return { outcome: "conflict" } as const;
+      }
+
+      const consultation = await tx.consultation.findUniqueOrThrow({
+        where: { id },
+        include: CONSULTATION_DETAIL_INCLUDE,
+      });
+
+      if (consultation.appointmentId) {
+        await tx.appointment.update({
+          where: { id: consultation.appointmentId },
+          data: { status: "ATENDIDA" },
+        });
+      }
+
+      if (consultation.nextControlAt) {
+        const primaryTutor = await tx.patientTutor.findFirst({
+          where: { patientId: consultation.patientId, isPrimary: true },
+          select: { tutorId: true },
+        });
+        // RN-08 garantiza que siempre hay un principal; si por alguna razón
+        // no lo hay, no bloqueamos el cierre clínico por falta de a quién
+        // recordarle — simplemente no se genera el recordatorio.
+        //
+        // Nota: @@unique([patientId,type,vaccineApplicationId,dueAt]) no
+        // deduplica de verdad cuando vaccineApplicationId es NULL (Postgres
+        // trata cada NULL como distinto en una constraint UNIQUE, y el tipo
+        // que genera Prisma para esta clave compuesta ni siquiera acepta
+        // `null` en ese campo) — así que un `upsert` acá sería una falsa
+        // idempotencia. `create` simple: en el peor caso, dos consultas
+        // distintas del mismo paciente con el mismo nextControlAt generan
+        // dos recordatorios en vez de uno deduplicado, no un dato incorrecto.
+        if (primaryTutor) {
+          await tx.reminder.create({
+            data: {
+              patientId: consultation.patientId,
+              tutorId: primaryTutor.tutorId,
+              type: "CONTROL",
+              dueAt: consultation.nextControlAt,
+              message: `Control de seguimiento para ${consultation.patient.name}`,
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: { userId, action: "CLOSE", entityName: "Consultation", entityId: id, ipAddress: ip },
+      });
+
+      return { outcome: "ok", consultation } as const;
+    });
+  }
 }
+
+export type CloseConsultationResult =
+  | { outcome: "ok"; consultation: ConsultationDetailRow }
+  | { outcome: "conflict" };

@@ -228,4 +228,25 @@ export const consultationsContract = c.router({
       422: errorSchema,
     },
   },
+  /**
+   * D3 "Cerrar una consulta". RN-06: exige reason/objective/assessment no
+   * vacíos, y en una sola transacción deja status=CERRADA+closedAt, pasa
+   * la cita asociada (si existe) a ATENDIDA, crea un Reminder CONTROL si
+   * `nextControlAt` está diligenciado, y escribe el AuditLog de acción
+   * CLOSE. No recibe body — opera sobre lo que ya quedó guardado por el
+   * autoguardado de D1/D2. RN-18 "Crear y cerrar consultas": ADMIN,
+   * VETERINARIO — mismo autor-o-ADMIN que updateDraft (RN-07).
+   */
+  close: {
+    method: "POST",
+    path: "/consultations/:id/close",
+    pathParams: z.object({ id: z.string() }),
+    body: z.object({}),
+    responses: {
+      200: consultationDetailSchema,
+      404: errorSchema,
+      409: errorSchema,
+      422: errorSchema,
+    },
+  },
 });

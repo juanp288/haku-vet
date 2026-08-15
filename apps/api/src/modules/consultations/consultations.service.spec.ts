@@ -93,6 +93,7 @@ describe("ConsultationsService", () => {
     findById: ReturnType<typeof vi.fn>;
     findLatestClosedWeight: ReturnType<typeof vi.fn>;
     updateDraft: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
   };
   let appointmentsRepository: {
     findById: ReturnType<typeof vi.fn>;
@@ -108,6 +109,17 @@ describe("ConsultationsService", () => {
       findVisibleById: vi.fn().mockResolvedValue(buildConsultationRow()),
       findById: vi.fn().mockResolvedValue(buildConsultationRow()),
       findLatestClosedWeight: vi.fn().mockResolvedValue(null),
+      close: vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve({
+            outcome: "ok",
+            consultation: buildConsultationRow({
+              status: "CERRADA",
+              closedAt: new Date("2026-08-06T14:00:00.000Z"),
+            }),
+          }),
+        ),
       updateDraft: vi
         .fn()
         .mockImplementation((id: string, data: Record<string, unknown>) =>
@@ -510,6 +522,101 @@ describe("ConsultationsService", () => {
       const result = await service.findById("consult_1", { sub: USER_ID, role: "VETERINARIO" });
 
       expect(result.previousWeightKg).toBeNull();
+    });
+  });
+
+  describe("close (D3, RN-06)", () => {
+    function buildCloseableRow(overrides: Partial<ConsultationDetailRow> = {}) {
+      return buildConsultationRow({
+        reason: "Control de vacunación",
+        objective: "FC 110, mucosas rosadas.",
+        assessment: "Paciente estable.",
+        ...overrides,
+      });
+    }
+
+    it("cierra cuando reason/objective/assessment están diligenciados", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(buildCloseableRow());
+
+      const result = await service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP);
+
+      expect(consultationsRepository.close).toHaveBeenCalledWith("consult_1", USER_ID, IP);
+      expect(result.status).toBe("CERRADA");
+    });
+
+    it("RN-06: rechaza si falta reason", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(
+        buildCloseableRow({ reason: "" }),
+      );
+
+      await expect(
+        service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.close).not.toHaveBeenCalled();
+    });
+
+    it("RN-06: rechaza si falta objective", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(
+        buildCloseableRow({ objective: null }),
+      );
+
+      await expect(
+        service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.close).not.toHaveBeenCalled();
+    });
+
+    it("RN-06: rechaza si falta assessment", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(
+        buildCloseableRow({ assessment: "   " }),
+      );
+
+      await expect(
+        service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.close).not.toHaveBeenCalled();
+    });
+
+    it("RN-05: rechaza si ya está cerrada", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(
+        buildCloseableRow({ status: "CERRADA" }),
+      );
+
+      await expect(
+        service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.close).not.toHaveBeenCalled();
+    });
+
+    it("404 si la consulta no existe o no es visible (borrador ajeno)", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(null);
+
+      await expect(
+        service.close("consult_1", { sub: OTHER_USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("409 si se cerró entre la lectura y el cierre (carrera)", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(buildCloseableRow());
+      consultationsRepository.close.mockResolvedValue({ outcome: "conflict" });
+
+      await expect(
+        service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("ADMIN puede cerrar un borrador ajeno", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(buildCloseableRow());
+
+      const result = await service.close("consult_1", { sub: ADMIN_ID, role: "ADMIN" }, IP);
+      expect(result.status).toBe("CERRADA");
+    });
+
+    it("la respuesta tras cerrar no está redactada (solo VETERINARIO/ADMIN llegan aquí)", async () => {
+      consultationsRepository.findVisibleById.mockResolvedValue(buildCloseableRow());
+
+      const result = await service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP);
+      expect(result.reason).not.toBeNull();
     });
   });
 });

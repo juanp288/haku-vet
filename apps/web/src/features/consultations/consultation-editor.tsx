@@ -1,15 +1,26 @@
 "use client";
 
 import type { ConsultationDetail, UpdateConsultationDraftInput } from "@vetclinic/contracts";
+import { Lock } from "@phosphor-icons/react/dist/csr/Lock";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrentUser } from "@/features/auth/use-auth";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { CONSULTATION_STATUS_CLASSES, CONSULTATION_STATUS_LABELS } from "../patients/consultation-status-labels";
-import { useConsultation, useUpdateConsultationDraft } from "./use-consultations";
+import { useCloseConsultation, useConsultation, useUpdateConsultationDraft } from "./use-consultations";
 import { VitalsEditor, VitalsReadOnly } from "./vitals-editor";
 
 const AUTOSAVE_DEBOUNCE_MS = 1200;
@@ -215,6 +226,70 @@ function SoapEditor({ consultation }: { consultation: ConsultationDetail }) {
   );
 }
 
+/**
+ * D3: "no se podrá editar después" — confirmación explícita porque es
+ * irreversible (RN-05, ni ADMIN puede reabrirla). El chequeo de
+ * reason/objective/assessment acá es solo comodidad de UI (deshabilita el
+ * botón de confirmar con un mensaje claro); la validación real es RN-06 en
+ * el backend.
+ */
+function CloseConsultationButton({ consultation }: { consultation: ConsultationDetail }) {
+  const [open, setOpen] = useState(false);
+  const closeConsultation = useCloseConsultation(consultation.id);
+
+  const missingFields = [
+    !consultation.reason?.trim() && "el motivo",
+    !consultation.objective?.trim() && "el examen objetivo",
+    !consultation.assessment?.trim() && "la evaluación",
+  ].filter((v): v is string => Boolean(v));
+
+  const handleClose = () => {
+    closeConsultation.mutate({ params: { id: consultation.id }, body: {} }, { onSuccess: () => setOpen(false) });
+  };
+
+  const errorMessage = getApiErrorMessage(closeConsultation.error, "No se pudo cerrar la consulta.");
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : setOpen(false))}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="default" size="sm">
+          <Lock size={16} weight="bold" />
+          Cerrar consulta
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>¿Cerrar esta consulta?</DialogTitle>
+          <DialogDescription>
+            Después de cerrarla no se puede editar ningún campo, ni siquiera un ADMIN. Si hay una
+            cita asociada, pasará a &quot;Atendida&quot;.
+          </DialogDescription>
+        </DialogHeader>
+
+        {missingFields.length > 0 && (
+          <p className="text-[13px] text-warning-700">
+            Falta diligenciar {missingFields.join(", ")} para poder cerrar.
+          </p>
+        )}
+        {errorMessage && <p className="text-[13px] text-destructive">{errorMessage}</p>}
+
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            Volver
+          </Button>
+          <Button
+            type="button"
+            disabled={missingFields.length > 0 || closeConsultation.isPending}
+            onClick={handleClose}
+          >
+            {closeConsultation.isPending ? "Cerrando…" : "Cerrar consulta"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ReadOnlyField({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
@@ -303,6 +378,11 @@ export function ConsultationEditor({ consultationId }: ConsultationEditorProps) 
         <div className="grid gap-6">
           {canEditSoap && <SoapEditor key={consultation.id} consultation={consultation} />}
           <VitalsEditor key={consultation.id} consultation={consultation} />
+          {canEditSoap && (
+            <div className="flex justify-end">
+              <CloseConsultationButton consultation={consultation} />
+            </div>
+          )}
         </div>
       )}
     </div>
