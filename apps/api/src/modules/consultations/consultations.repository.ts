@@ -3,7 +3,8 @@ import { Prisma, type PrismaClient } from "@vetclinic/db";
 import { PRISMA_CLIENT } from "../../common/prisma/prisma.constants";
 
 const CONSULTATION_DETAIL_INCLUDE = {
-  vet: { select: { fullName: true } },
+  /** D6: "veterinario con su registro profesional" en la salida impresa. */
+  vet: { select: { fullName: true, licenseNumber: true } },
   patient: { select: { id: true, name: true } },
   /** D4: "puede haber varias adendas" — orden de creación (más antigua primero), como un registro que crece. */
   addenda: {

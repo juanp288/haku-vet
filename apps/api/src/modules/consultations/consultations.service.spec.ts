@@ -74,7 +74,7 @@ function buildConsultationRow(overrides: Partial<ConsultationDetailRow> = {}): C
     createdAt: new Date("2026-08-06T13:05:00.000Z"),
     updatedAt: new Date("2026-08-06T13:05:00.000Z"),
     patient: { id: "patient_1", name: "Luna" },
-    vet: { fullName: "Dra. Camila Torres" },
+    vet: { fullName: "Dra. Camila Torres", licenseNumber: "MV-1234" },
     addenda: [],
     ...overrides,
   };
@@ -180,6 +180,11 @@ describe("ConsultationsService", () => {
         entityId: "consult_1",
         ipAddress: IP,
       });
+    });
+
+    it("D6: incluye el registro profesional del veterinario en la respuesta", async () => {
+      const result = await service.create(buildCreateInput(), USER_ID, IP);
+      expect(result.vetLicenseNumber).toBe("MV-1234");
     });
 
     it("crea desde una cita EN_ATENCION también", async () => {

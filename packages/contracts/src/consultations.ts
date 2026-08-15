@@ -192,6 +192,8 @@ export const consultationDetailSchema = z.object({
   appointmentId: z.string().nullable(),
   vetId: z.string(),
   vetName: z.string(),
+  /** D6: "veterinario con su registro profesional" — null si no lo tiene diligenciado (User.licenseNumber es opcional). */
+  vetLicenseNumber: z.string().nullable(),
   occurredAt: z.string(),
   status: consultationStatusSchema,
   closedAt: z.string().nullable(),

@@ -13,6 +13,7 @@ import { BreedsModule } from "./modules/breeds/breeds.module";
 import { ConsultationsModule } from "./modules/consultations/consultations.module";
 import { PatientsModule } from "./modules/patients/patients.module";
 import { SearchModule } from "./modules/search/search.module";
+import { SettingsModule } from "./modules/settings/settings.module";
 import { TutorsModule } from "./modules/tutors/tutors.module";
 
 @Module({
@@ -31,6 +32,7 @@ import { TutorsModule } from "./modules/tutors/tutors.module";
     SearchModule,
     AppointmentsModule,
     ConsultationsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [

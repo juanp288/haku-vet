@@ -336,6 +336,7 @@ export class ConsultationsService {
       appointmentId: row.appointmentId,
       vetId: row.vetId,
       vetName: row.vet.fullName,
+      vetLicenseNumber: row.vet.licenseNumber,
       occurredAt: row.occurredAt.toISOString(),
       status: row.status,
       closedAt: row.closedAt ? row.closedAt.toISOString() : null,

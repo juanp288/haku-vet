@@ -5,6 +5,7 @@ import { breedsContract } from "./breeds";
 import { consultationsContract } from "./consultations";
 import { patientsContract } from "./patients";
 import { searchContract } from "./search";
+import { settingsContract } from "./settings";
 import { tutorsContract } from "./tutors";
 
 export * from "./common/errors";
@@ -18,6 +19,7 @@ export * from "./breeds";
 export * from "./consultations";
 export * from "./patients";
 export * from "./appointments";
+export * from "./settings";
 
 const c = initContract();
 
@@ -29,4 +31,5 @@ export const apiContract = c.router({
   patients: patientsContract,
   appointments: appointmentsContract,
   consultations: consultationsContract,
+  settings: settingsContract,
 });

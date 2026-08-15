@@ -2,6 +2,7 @@
 
 import type { ConsultationDetail, UpdateConsultationDraftInput } from "@vetclinic/contracts";
 import { Lock } from "@phosphor-icons/react/dist/csr/Lock";
+import { Printer } from "@phosphor-icons/react/dist/csr/Printer";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -346,11 +347,21 @@ export function ConsultationEditor({ consultationId }: ConsultationEditorProps) 
             {consultation.vetName} · {new Date(consultation.occurredAt).toLocaleString("es-CO")}
           </p>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${CONSULTATION_STATUS_CLASSES[consultation.status]}`}
-        >
-          {CONSULTATION_STATUS_LABELS[consultation.status]}
-        </span>
+        <div className="flex items-center gap-2.5">
+          {canEditSoap && consultation.status === "CERRADA" && (
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href={`/consultas/${consultation.id}/imprimir`}>
+                <Printer size={16} weight="bold" />
+                Imprimir
+              </Link>
+            </Button>
+          )}
+          <span
+            className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${CONSULTATION_STATUS_CLASSES[consultation.status]}`}
+          >
+            {CONSULTATION_STATUS_LABELS[consultation.status]}
+          </span>
+        </div>
       </div>
 
       {consultation.status === "CERRADA" ? (

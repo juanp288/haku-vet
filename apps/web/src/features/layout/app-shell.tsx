@@ -24,9 +24,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen items-stretch">
-      <AppNav />
+      <div className="print:hidden">
+        <AppNav />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader />
+        <div className="print:hidden">
+          <AppHeader />
+        </div>
         <main className="flex-1">{children}</main>
       </div>
     </div>
