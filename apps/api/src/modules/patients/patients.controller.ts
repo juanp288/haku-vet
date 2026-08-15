@@ -9,6 +9,7 @@ import {
   type LinkTutorInput,
   type ListConsultationsQuery,
   type Patient,
+  type WeightHistoryPoint,
 } from "@vetclinic/contracts";
 import type { JwtPayload } from "../../common/auth.constants";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -97,5 +98,15 @@ export class PatientsController {
     @CurrentUser() user: JwtPayload,
   ): Promise<ConsultationsPage> {
     return this.patientsService.listConsultations(id, query, user);
+  }
+
+  /** D5: "gráfica de evolución del peso" — mismos roles y visibilidad que listConsultations. */
+  @Get(":id/weight-history")
+  @Roles("ADMIN", "VETERINARIO", "AUXILIAR")
+  weightHistory(
+    @Param("id") id: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<WeightHistoryPoint[]> {
+    return this.patientsService.getWeightHistory(id, user);
   }
 }

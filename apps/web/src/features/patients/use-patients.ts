@@ -26,11 +26,29 @@ export function usePatient(patientId: string) {
   });
 }
 
-/** B5: historia clínica paginada — vacía hasta que D1 exista, pero la consulta ya es real. */
-export function usePatientConsultations(patientId: string, page: number) {
+export interface PatientConsultationsFilters {
+  vetId?: string;
+  from?: string;
+  to?: string;
+}
+
+/** B5/D5: historia clínica paginada, con filtro opcional por veterinario y rango de fechas. */
+export function usePatientConsultations(
+  patientId: string,
+  page: number,
+  filters: PatientConsultationsFilters = {},
+) {
   return tsr.patients.listConsultations.useQuery({
-    queryKey: [...patientQueryKey(patientId), "consultations", page],
-    queryData: { params: { id: patientId }, query: { page } },
+    queryKey: [...patientQueryKey(patientId), "consultations", page, filters],
+    queryData: { params: { id: patientId }, query: { page, ...filters } },
+  });
+}
+
+/** D5: "gráfica de evolución del peso" — serie completa, sin paginar. */
+export function usePatientWeightHistory(patientId: string) {
+  return tsr.patients.weightHistory.useQuery({
+    queryKey: [...patientQueryKey(patientId), "weight-history"],
+    queryData: { params: { id: patientId } },
   });
 }
 

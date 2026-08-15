@@ -11,12 +11,19 @@ import type {
   LinkTutorInput,
   ListConsultationsQuery,
   Patient as PatientDto,
+  WeightHistoryPoint,
 } from "@vetclinic/contracts";
 import { CONSULTATIONS_PAGE_SIZE } from "@vetclinic/contracts";
 import type { Role } from "@vetclinic/db";
 import { AuditService } from "../../common/audit/audit.service";
 import { ClinicTimeService } from "../../common/clinic-time/clinic-time.service";
-import { formatAgeLabel, getDatePartsUTC, type DateParts } from "../../common/clinic-time/clinic-time.util";
+import {
+  formatAgeLabel,
+  getDatePartsUTC,
+  getDayRangeInTimezone,
+  parseDateParts,
+  type DateParts,
+} from "../../common/clinic-time/clinic-time.util";
 import { BreedsRepository } from "../breeds/breeds.repository";
 import { TutorsRepository } from "../tutors/tutors.repository";
 import {
@@ -185,7 +192,10 @@ export class PatientsService {
   }
 
   /**
-   * B5: últimas consultas en orden cronológico inverso, paginadas de a 10.
+   * B5/D5: últimas consultas en orden cronológico inverso, paginadas de a
+   * 10, con filtro opcional por veterinario y rango de fechas (RN-19:
+   * `from`/`to` son fechas de calendario en hora de la clínica, convertidas
+   * acá a instantes UTC — nunca se comparan directo contra `occurredAt`).
    * RN-18 "regla clave" — RECEPCION no tiene este endpoint en @Roles, así
    * que nunca llega aquí. AUXILIAR sí llega, pero solo ve signos vitales:
    * se redactan reason/diagnosis antes de devolver la fila.
@@ -197,12 +207,21 @@ export class PatientsService {
   ): Promise<ConsultationsPage> {
     await this.getExistingPatient(patientId);
 
-    const { items, total } = await this.patientsRepository.findConsultationsPage(
+    const settings = await this.clinicTimeService.getSettings();
+    const occurredFrom = query.from
+      ? getDayRangeInTimezone(parseDateParts(query.from), settings.timezone).start
+      : undefined;
+    const occurredTo = query.to
+      ? getDayRangeInTimezone(parseDateParts(query.to), settings.timezone).end
+      : undefined;
+
+    const { items, total, availableVets } = await this.patientsRepository.findConsultationsPage(
       patientId,
       user.sub,
       user.role === "ADMIN",
       query.page,
       CONSULTATIONS_PAGE_SIZE,
+      { vetId: query.vetId, occurredFrom, occurredTo },
     );
 
     const onlyVitals = user.role === "AUXILIAR";
@@ -212,7 +231,26 @@ export class PatientsService {
       pageSize: CONSULTATIONS_PAGE_SIZE,
       total,
       totalPages: Math.max(1, Math.ceil(total / CONSULTATIONS_PAGE_SIZE)),
+      availableVets,
     };
+  }
+
+  /** D5: "gráfica de evolución del peso" — misma visibilidad RN-07 que listConsultations, sin paginar ni redactar (el peso ya es visible para AUXILIAR). */
+  async getWeightHistory(
+    patientId: string,
+    user: { sub: string; role: Role },
+  ): Promise<WeightHistoryPoint[]> {
+    await this.getExistingPatient(patientId);
+
+    const points = await this.patientsRepository.findWeightHistory(
+      patientId,
+      user.sub,
+      user.role === "ADMIN",
+    );
+    return points.map((point) => ({
+      occurredAt: point.occurredAt.toISOString(),
+      weightKg: point.weightKg.toNumber(),
+    }));
   }
 
   private toConsultationSummary(
@@ -223,6 +261,7 @@ export class PatientsService {
       id: row.id,
       occurredAt: row.occurredAt.toISOString(),
       status: row.status,
+      vetId: row.vetId,
       vetName: row.vet.fullName,
       reason: onlyVitals ? null : row.reason,
       diagnosis: onlyVitals ? null : row.diagnosis,

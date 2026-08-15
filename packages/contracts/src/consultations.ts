@@ -16,6 +16,7 @@ export const consultationSummarySchema = z.object({
   id: z.string(),
   occurredAt: z.string(),
   status: consultationStatusSchema,
+  vetId: z.string(),
   vetName: z.string(),
   reason: z.string().nullable(),
   diagnosis: z.string().nullable(),
@@ -29,10 +30,28 @@ export type ConsultationSummary = z.infer<typeof consultationSummarySchema>;
 const PAGE_SIZE = 10;
 export { PAGE_SIZE as CONSULTATIONS_PAGE_SIZE };
 
+/**
+ * D5: "filtro por rango de fechas y por veterinario". `from`/`to` son
+ * fechas de calendario (AAAA-MM-DD) en hora de la clínica — el backend las
+ * convierte a instantes UTC con RN-19, igual que la agenda (C1), nunca
+ * comparando contra `occurredAt` directamente.
+ */
 export const listConsultationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
+  vetId: z.string().optional(),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." })
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha debe tener el formato AAAA-MM-DD." })
+    .optional(),
 });
 export type ListConsultationsQuery = z.infer<typeof listConsultationsQuerySchema>;
+
+export const consultationVetOptionSchema = z.object({ id: z.string(), fullName: z.string() });
+export type ConsultationVetOption = z.infer<typeof consultationVetOptionSchema>;
 
 export const consultationsPageSchema = z.object({
   items: z.array(consultationSummarySchema),
@@ -40,8 +59,17 @@ export const consultationsPageSchema = z.object({
   pageSize: z.number(),
   total: z.number(),
   totalPages: z.number(),
+  /** D5: opciones reales para el filtro "por veterinario" — solo quienes atendieron a este paciente y son visibles (RN-07). */
+  availableVets: z.array(consultationVetOptionSchema),
 });
 export type ConsultationsPage = z.infer<typeof consultationsPageSchema>;
+
+/** D5: "gráfica de evolución del peso" — serie cronológica de las consultas con weightKg registrado, sin paginar. */
+export const weightHistoryPointSchema = z.object({
+  occurredAt: z.string(),
+  weightKg: z.number(),
+});
+export type WeightHistoryPoint = z.infer<typeof weightHistoryPointSchema>;
 
 /**
  * D1: crear una consulta. Exactamente una de `appointmentId` (desde una

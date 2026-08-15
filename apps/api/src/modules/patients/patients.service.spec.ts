@@ -178,10 +178,11 @@ describe("PatientsService", () => {
     setPrimaryTutor: ReturnType<typeof vi.fn>;
     unlinkTutor: ReturnType<typeof vi.fn>;
     findConsultationsPage: ReturnType<typeof vi.fn>;
+    findWeightHistory: ReturnType<typeof vi.fn>;
   };
   let tutorsRepository: { findById: ReturnType<typeof vi.fn> };
   let breedsRepository: { findById: ReturnType<typeof vi.fn> };
-  let clinicTimeService: { today: ReturnType<typeof vi.fn> };
+  let clinicTimeService: { today: ReturnType<typeof vi.fn>; getSettings: ReturnType<typeof vi.fn> };
   let audit: { record: ReturnType<typeof vi.fn> };
   let service: PatientsService;
 
@@ -194,11 +195,21 @@ describe("PatientsService", () => {
       linkTutor: vi.fn(),
       setPrimaryTutor: vi.fn(),
       unlinkTutor: vi.fn(),
-      findConsultationsPage: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+      findConsultationsPage: vi.fn().mockResolvedValue({ items: [], total: 0, availableVets: [] }),
+      findWeightHistory: vi.fn().mockResolvedValue([]),
     };
     tutorsRepository = { findById: vi.fn().mockResolvedValue(buildTutor()) };
     breedsRepository = { findById: vi.fn() };
-    clinicTimeService = { today: vi.fn().mockResolvedValue(TODAY) };
+    clinicTimeService = {
+      today: vi.fn().mockResolvedValue(TODAY),
+      getSettings: vi.fn().mockResolvedValue({
+        timezone: "America/Bogota",
+        openingHour: 8,
+        closingHour: 18,
+        slotMinutes: 30,
+        workingDays: [1, 2, 3, 4, 5, 6],
+      }),
+    };
     audit = { record: vi.fn() };
     service = new PatientsService(
       patientsRepository as unknown as PatientsRepository,
@@ -537,6 +548,7 @@ describe("PatientsService", () => {
         true,
         1,
         10,
+        { vetId: undefined, occurredFrom: undefined, occurredTo: undefined },
       );
 
       await service.listConsultations(
@@ -550,11 +562,16 @@ describe("PatientsService", () => {
         false,
         1,
         10,
+        { vetId: undefined, occurredFrom: undefined, occurredTo: undefined },
       );
     });
 
     it("calcula totalPages redondeando hacia arriba", async () => {
-      patientsRepository.findConsultationsPage.mockResolvedValue({ items: [], total: 25 });
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [],
+        total: 25,
+        availableVets: [],
+      });
 
       const result = await service.listConsultations(
         "patient_1",
@@ -567,7 +584,11 @@ describe("PatientsService", () => {
     });
 
     it("sin consultas devuelve totalPages en 1, no en 0", async () => {
-      patientsRepository.findConsultationsPage.mockResolvedValue({ items: [], total: 0 });
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [],
+        total: 0,
+        availableVets: [],
+      });
 
       const result = await service.listConsultations(
         "patient_1",
@@ -585,6 +606,115 @@ describe("PatientsService", () => {
         service.listConsultations("no-existe", { page: 1 }, { sub: "vet_1", role: "VETERINARIO" }),
       ).rejects.toThrow(NotFoundException);
       expect(patientsRepository.findConsultationsPage).not.toHaveBeenCalled();
+    });
+
+    it("D5: pasa vetId al repositorio tal cual", async () => {
+      await service.listConsultations(
+        "patient_1",
+        { page: 1, vetId: "vet_2" },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+      expect(patientsRepository.findConsultationsPage).toHaveBeenCalledWith(
+        "patient_1",
+        "vet_1",
+        false,
+        1,
+        10,
+        { vetId: "vet_2", occurredFrom: undefined, occurredTo: undefined },
+      );
+    });
+
+    it("D5/RN-19: convierte from/to (fechas de calendario) a instantes UTC vía ClinicSettings.timezone", async () => {
+      await service.listConsultations(
+        "patient_1",
+        { page: 1, from: "2026-08-01", to: "2026-08-06" },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(clinicTimeService.getSettings).toHaveBeenCalled();
+      expect(patientsRepository.findConsultationsPage).toHaveBeenCalledWith(
+        "patient_1",
+        "vet_1",
+        false,
+        1,
+        10,
+        {
+          vetId: undefined,
+          // América/Bogotá = UTC-5: 2026-08-01 00:00 local = 05:00 UTC.
+          occurredFrom: new Date("2026-08-01T05:00:00.000Z"),
+          // "to" es inclusivo del día calendario: instante de inicio del día SIGUIENTE.
+          occurredTo: new Date("2026-08-07T05:00:00.000Z"),
+        },
+      );
+    });
+
+    it("D5: expone availableVets tal cual lo devuelve el repository", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [],
+        total: 0,
+        availableVets: [
+          { id: "vet_1", fullName: "Dra. Camila Torres" },
+          { id: "vet_2", fullName: "Dr. Andrés Rueda" },
+        ],
+      });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(result.availableVets).toEqual([
+        { id: "vet_1", fullName: "Dra. Camila Torres" },
+        { id: "vet_2", fullName: "Dr. Andrés Rueda" },
+      ]);
+    });
+
+    it("D5: cada item incluye vetId (no solo vetName)", async () => {
+      patientsRepository.findConsultationsPage.mockResolvedValue({
+        items: [buildConsultationRow({ vetId: "vet_1" })],
+        total: 1,
+        availableVets: [],
+      });
+
+      const result = await service.listConsultations(
+        "patient_1",
+        { page: 1 },
+        { sub: "vet_1", role: "VETERINARIO" },
+      );
+
+      expect(result.items[0]?.vetId).toBe("vet_1");
+    });
+  });
+
+  describe("getWeightHistory (D5)", () => {
+    it("mapea occurredAt/weightKg a números planos, en el orden que devuelve el repository", async () => {
+      patientsRepository.findWeightHistory.mockResolvedValue([
+        { occurredAt: new Date("2026-07-01T13:00:00.000Z"), weightKg: new Prisma.Decimal("20.5") },
+        { occurredAt: new Date("2026-08-01T13:00:00.000Z"), weightKg: new Prisma.Decimal("21.0") },
+      ]);
+
+      const result = await service.getWeightHistory("patient_1", { sub: "vet_1", role: "VETERINARIO" });
+
+      expect(result).toEqual([
+        { occurredAt: "2026-07-01T13:00:00.000Z", weightKg: 20.5 },
+        { occurredAt: "2026-08-01T13:00:00.000Z", weightKg: 21.0 },
+      ]);
+      expect(patientsRepository.findWeightHistory).toHaveBeenCalledWith("patient_1", "vet_1", false);
+    });
+
+    it("rechaza si la mascota no existe", async () => {
+      patientsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.getWeightHistory("no-existe", { sub: "vet_1", role: "VETERINARIO" }),
+      ).rejects.toThrow(NotFoundException);
+      expect(patientsRepository.findWeightHistory).not.toHaveBeenCalled();
+    });
+
+    it("le pasa isAdmin=true al repositorio solo cuando el rol es ADMIN", async () => {
+      await service.getWeightHistory("patient_1", { sub: "admin_1", role: "ADMIN" });
+      expect(patientsRepository.findWeightHistory).toHaveBeenCalledWith("patient_1", "admin_1", true);
     });
   });
 });

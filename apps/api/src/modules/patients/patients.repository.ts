@@ -64,6 +64,14 @@ export type ConsultationRow = Prisma.ConsultationGetPayload<{
 export interface ConsultationsPageResult {
   items: ConsultationRow[];
   total: number;
+  availableVets: { id: string; fullName: string }[];
+}
+
+export interface ListConsultationsFilters {
+  vetId?: string;
+  /** Instantes UTC ya resueltos (RN-19) — el repository no convierte zonas horarias. */
+  occurredFrom?: Date;
+  occurredTo?: Date;
 }
 
 @Injectable()
@@ -216,12 +224,19 @@ export class PatientsRepository {
     return { outcome: "ok", patient: await this.findByIdOrThrow(patientId) };
   }
 
+  /** RN-07: un BORRADOR solo lo ve su autor (vetId) o ADMIN — nunca otro veterinario ni AUXILIAR. */
+  private visibilityWhere(currentUserId: string, isAdmin: boolean): Prisma.ConsultationWhereInput {
+    return isAdmin ? {} : { OR: [{ status: "CERRADA" }, { status: "BORRADOR", vetId: currentUserId }] };
+  }
+
   /**
-   * B5: últimas consultas, orden cronológico inverso, paginadas. RN-07: un
-   * BORRADOR solo lo ve su autor (vetId) o ADMIN — nunca otro veterinario
-   * ni AUXILIAR. La redacción de campos para AUXILIAR (RN-18, solo signos
-   * vitales) vive en el service, no aquí: el repository solo filtra
-   * visibilidad de filas, no columnas.
+   * B5/D5: últimas consultas, orden cronológico inverso, paginadas, con
+   * filtro opcional por veterinario y rango de fechas. La redacción de
+   * campos para AUXILIAR (RN-18, solo signos vitales) vive en el service,
+   * no aquí: el repository solo filtra visibilidad de filas, no columnas.
+   * `availableVets` no se filtra por página/fecha/vet — siempre refleja
+   * todos los veterinarios visibles para este paciente, para que el
+   * selector del filtro no pierda opciones al acotar la búsqueda.
    */
   async findConsultationsPage(
     patientId: string,
@@ -229,15 +244,24 @@ export class PatientsRepository {
     isAdmin: boolean,
     page: number,
     pageSize: number,
+    filters: ListConsultationsFilters = {},
   ): Promise<ConsultationsPageResult> {
+    const visibility = this.visibilityWhere(currentUserId, isAdmin);
     const where: Prisma.ConsultationWhereInput = {
       patientId,
-      ...(isAdmin
-        ? {}
-        : { OR: [{ status: "CERRADA" }, { status: "BORRADOR", vetId: currentUserId }] }),
+      ...visibility,
+      ...(filters.vetId ? { vetId: filters.vetId } : {}),
+      ...(filters.occurredFrom || filters.occurredTo
+        ? {
+            occurredAt: {
+              ...(filters.occurredFrom ? { gte: filters.occurredFrom } : {}),
+              ...(filters.occurredTo ? { lt: filters.occurredTo } : {}),
+            },
+          }
+        : {}),
     };
 
-    const [items, total] = await Promise.all([
+    const [items, total, vetRows] = await Promise.all([
       this.prisma.consultation.findMany({
         where,
         orderBy: { occurredAt: "desc" },
@@ -246,9 +270,37 @@ export class PatientsRepository {
         include: CONSULTATION_ROW_INCLUDE,
       }),
       this.prisma.consultation.count({ where }),
+      this.prisma.consultation.findMany({
+        where: { patientId, ...visibility },
+        distinct: ["vetId"],
+        select: { vet: { select: { id: true, fullName: true } } },
+        orderBy: { vetId: "asc" },
+      }),
     ]);
 
-    return { items, total };
+    return { items, total, availableVets: vetRows.map((row) => row.vet) };
+  }
+
+  /** D5: "gráfica de evolución del peso" — cronológico ascendente, sin paginar, mismo filtro RN-07. */
+  async findWeightHistory(
+    patientId: string,
+    currentUserId: string,
+    isAdmin: boolean,
+  ): Promise<{ occurredAt: Date; weightKg: Prisma.Decimal }[]> {
+    const rows = await this.prisma.consultation.findMany({
+      where: {
+        patientId,
+        weightKg: { not: null },
+        ...this.visibilityWhere(currentUserId, isAdmin),
+      },
+      orderBy: { occurredAt: "asc" },
+      select: { occurredAt: true, weightKg: true },
+    });
+    // El `where` ya exige weightKg no nulo; el filter es solo para que TS no
+    // necesite un cast — Prisma no angosta el tipo del `select` según el `where`.
+    return rows.flatMap((row) =>
+      row.weightKg ? [{ occurredAt: row.occurredAt, weightKg: row.weightKg }] : [],
+    );
   }
 
   private findByIdOrThrow(id: string): Promise<PatientWithRelations> {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   consultationsPageSchema,
   listConsultationsQuerySchema,
+  weightHistoryPointSchema,
 } from "./consultations";
 import { errorSchema } from "./common/errors";
 import { sexSchema } from "./common/sex";
@@ -161,6 +162,16 @@ export const patientsContract = c.router({
     query: listConsultationsQuerySchema,
     responses: {
       200: consultationsPageSchema,
+      404: errorSchema,
+    },
+  },
+  /** D5: "gráfica de evolución del peso" — mismos roles y visibilidad RN-07 que listConsultations, sin paginar. */
+  weightHistory: {
+    method: "GET",
+    path: "/patients/:id/weight-history",
+    pathParams: patientIdParamsSchema,
+    responses: {
+      200: z.array(weightHistoryPointSchema),
       404: errorSchema,
     },
   },
