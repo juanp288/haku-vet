@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type {
   ConsultationDetail,
+  CreateAddendumInput,
   CreateConsultationInput,
   UpdateConsultationDraftInput,
   UpdateVitalsInput,
@@ -134,9 +136,11 @@ export class ConsultationsService {
       throw new NotFoundException("La consulta no existe.");
     }
     if (existing.status === "CERRADA") {
-      throw new UnprocessableEntityException(
-        "Esta consulta está cerrada y no se puede modificar.",
-      );
+      // RN-05/caso límite #10: un PATCH sobre una consulta cerrada devuelve
+      // 403 (no 422) — la única vía de corrección es la adenda (D4), esto
+      // no es "tu solicitud es inválida para el estado actual", es "esta
+      // acción ya no está permitida sobre este recurso".
+      throw new ForbiddenException("Esta consulta está cerrada y no se puede modificar.");
     }
 
     const updated = await this.consultationsRepository.updateDraft(id, {
@@ -186,9 +190,8 @@ export class ConsultationsService {
       throw new NotFoundException("La consulta no existe.");
     }
     if (existing.status === "CERRADA") {
-      throw new UnprocessableEntityException(
-        "Esta consulta está cerrada y no se puede modificar.",
-      );
+      // Ver comentario equivalente en updateVitals — caso límite #10.
+      throw new ForbiddenException("Esta consulta está cerrada y no se puede modificar.");
     }
 
     const updated = await this.consultationsRepository.updateDraft(id, {
@@ -269,6 +272,55 @@ export class ConsultationsService {
     return this.toDetailDto(result.consultation, false);
   }
 
+  /**
+   * D4: "corregir o complementar una consulta cerrada sin alterar el
+   * original". RN-18: solo el autor de la consulta o un ADMIN — a
+   * diferencia de updateDraft/close, esto NO usa findVisibleById (RN-07),
+   * porque una consulta CERRADA es visible para cualquier VETERINARIO
+   * (historia clínica compartida) pero "agregar adenda" es más estricto
+   * que "ver": ahí sí importa si es o no el autor. Por eso se resuelve la
+   * autoría a mano contra `vetId` en vez de reusar el filtro de lectura.
+   */
+  async addAddendum(
+    id: string,
+    input: CreateAddendumInput,
+    user: { sub: string; role: Role },
+    ip: string,
+  ): Promise<ConsultationDetail> {
+    const consultation = await this.consultationsRepository.findById(id);
+    if (!consultation) {
+      throw new NotFoundException("La consulta no existe.");
+    }
+
+    const isAuthor = consultation.vetId === user.sub;
+    const isAdmin = user.role === "ADMIN";
+    if (!isAuthor && !isAdmin) {
+      throw new ForbiddenException("Solo el autor de la consulta o un ADMIN puede agregar adendas.");
+    }
+
+    if (consultation.status !== "CERRADA") {
+      throw new UnprocessableEntityException(
+        "Solo se pueden agregar adendas a una consulta cerrada — mientras está en borrador, edítala directamente.",
+      );
+    }
+
+    await this.consultationsRepository.createAddendum(id, user.sub, input.content.trim());
+
+    await this.auditService.record({
+      userId: user.sub,
+      action: "ADDENDUM",
+      entityName: "Consultation",
+      entityId: id,
+      ipAddress: ip,
+    });
+
+    const updated = await this.consultationsRepository.findById(id);
+    if (!updated) {
+      throw new NotFoundException("La consulta no existe.");
+    }
+    return this.toDetailDto(updated, false);
+  }
+
   private async toDetailDto(
     row: ConsultationDetailRow,
     onlyVitals: boolean,
@@ -304,6 +356,15 @@ export class ConsultationsService {
       mucousMembranes: row.mucousMembranes,
       capillaryRefill: row.capillaryRefill ? row.capillaryRefill.toNumber() : null,
       nextControlAt: row.nextControlAt ? row.nextControlAt.toISOString() : null,
+      addenda: onlyVitals
+        ? []
+        : row.addenda.map((addendum) => ({
+            id: addendum.id,
+            authorId: addendum.authorId,
+            authorName: addendum.author.fullName,
+            content: addendum.content,
+            createdAt: addendum.createdAt.toISOString(),
+          })),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

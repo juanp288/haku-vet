@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
@@ -74,6 +75,7 @@ function buildConsultationRow(overrides: Partial<ConsultationDetailRow> = {}): C
     updatedAt: new Date("2026-08-06T13:05:00.000Z"),
     patient: { id: "patient_1", name: "Luna" },
     vet: { fullName: "Dra. Camila Torres" },
+    addenda: [],
     ...overrides,
   };
 }
@@ -94,6 +96,7 @@ describe("ConsultationsService", () => {
     findLatestClosedWeight: ReturnType<typeof vi.fn>;
     updateDraft: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
+    createAddendum: ReturnType<typeof vi.fn>;
   };
   let appointmentsRepository: {
     findById: ReturnType<typeof vi.fn>;
@@ -109,6 +112,7 @@ describe("ConsultationsService", () => {
       findVisibleById: vi.fn().mockResolvedValue(buildConsultationRow()),
       findById: vi.fn().mockResolvedValue(buildConsultationRow()),
       findLatestClosedWeight: vi.fn().mockResolvedValue(null),
+      createAddendum: vi.fn().mockResolvedValue(undefined),
       close: vi
         .fn()
         .mockImplementation(() =>
@@ -281,13 +285,23 @@ describe("ConsultationsService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("AUXILIAR ve una consulta CERRADA redactada a solo signos vitales", async () => {
+    it("AUXILIAR ve una consulta CERRADA redactada a solo signos vitales (D4: adenda incluida)", async () => {
       consultationsRepository.findVisibleById.mockResolvedValue(
         buildConsultationRow({
           status: "CERRADA",
           closedAt: new Date("2026-08-06T14:00:00.000Z"),
           weightKg: new Prisma.Decimal("22.6"),
           temperatureC: new Prisma.Decimal("38.4"),
+          addenda: [
+            {
+              id: "add_1",
+              consultationId: "consult_1",
+              authorId: USER_ID,
+              content: "Corrección clínica.",
+              createdAt: new Date("2026-08-10T10:00:00.000Z"),
+              author: { fullName: "Dra. Camila Torres" },
+            },
+          ],
         }),
       );
 
@@ -298,6 +312,7 @@ describe("ConsultationsService", () => {
       expect(result.diagnosis).toBeNull();
       expect(result.weightKg).toBe(22.6);
       expect(result.temperatureC).toBe(38.4);
+      expect(result.addenda).toEqual([]);
     });
 
     it("404 si la consulta no existe", async () => {
@@ -337,14 +352,14 @@ describe("ConsultationsService", () => {
       });
     });
 
-    it("RN-05: rechaza si la consulta ya está CERRADA", async () => {
+    it("RN-05/caso límite #10: rechaza con 403 (no 422) si la consulta ya está CERRADA", async () => {
       consultationsRepository.findVisibleById.mockResolvedValue(
         buildConsultationRow({ status: "CERRADA" }),
       );
 
       await expect(
         service.updateDraft("consult_1", buildUpdateInput(), { sub: USER_ID, role: "VETERINARIO" }, IP),
-      ).rejects.toThrow(UnprocessableEntityException);
+      ).rejects.toThrow(ForbiddenException);
       expect(consultationsRepository.updateDraft).not.toHaveBeenCalled();
     });
 
@@ -451,12 +466,12 @@ describe("ConsultationsService", () => {
       expect(consultationsRepository.updateDraft).toHaveBeenCalled();
     });
 
-    it("RN-05: rechaza si la consulta ya está CERRADA", async () => {
+    it("RN-05/caso límite #10: rechaza con 403 (no 422) si la consulta ya está CERRADA", async () => {
       consultationsRepository.findById.mockResolvedValue(buildConsultationRow({ status: "CERRADA" }));
 
       await expect(
         service.updateVitals("consult_1", buildVitalsInput(), { sub: "aux_1", role: "AUXILIAR" }, IP),
-      ).rejects.toThrow(UnprocessableEntityException);
+      ).rejects.toThrow(ForbiddenException);
       expect(consultationsRepository.updateDraft).not.toHaveBeenCalled();
     });
 
@@ -617,6 +632,127 @@ describe("ConsultationsService", () => {
 
       const result = await service.close("consult_1", { sub: USER_ID, role: "VETERINARIO" }, IP);
       expect(result.reason).not.toBeNull();
+    });
+  });
+
+  describe("addAddendum (D4, RN-18)", () => {
+    function buildClosedRow(overrides: Partial<ConsultationDetailRow> = {}) {
+      return buildConsultationRow({ status: "CERRADA", vetId: USER_ID, ...overrides });
+    }
+
+    it("el autor de la consulta agrega una adenda y audita con acción ADDENDUM", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildClosedRow());
+
+      const result = await service.addAddendum(
+        "consult_1",
+        { content: "Se corrige el peso registrado: era 4.2kg, no 4.8kg." },
+        { sub: USER_ID, role: "VETERINARIO" },
+        IP,
+      );
+
+      expect(consultationsRepository.createAddendum).toHaveBeenCalledWith(
+        "consult_1",
+        USER_ID,
+        "Se corrige el peso registrado: era 4.2kg, no 4.8kg.",
+      );
+      expect(audit.record).toHaveBeenCalledWith({
+        userId: USER_ID,
+        action: "ADDENDUM",
+        entityName: "Consultation",
+        entityId: "consult_1",
+        ipAddress: IP,
+      });
+      expect(result.id).toBe("consult_1");
+    });
+
+    it("ADMIN puede agregar una adenda a una consulta ajena", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildClosedRow({ vetId: OTHER_USER_ID }));
+
+      await service.addAddendum(
+        "consult_1",
+        { content: "Nota administrativa." },
+        { sub: ADMIN_ID, role: "ADMIN" },
+        IP,
+      );
+      expect(consultationsRepository.createAddendum).toHaveBeenCalled();
+    });
+
+    it("RN-18 'solo propias': otro VETERINARIO (no autor) no puede agregar una adenda", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildClosedRow({ vetId: OTHER_USER_ID }));
+
+      await expect(
+        service.addAddendum(
+          "consult_1",
+          { content: "Intento de otro vet." },
+          { sub: USER_ID, role: "VETERINARIO" },
+          IP,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(consultationsRepository.createAddendum).not.toHaveBeenCalled();
+    });
+
+    it("rechaza agregar una adenda mientras la consulta sigue en BORRADOR — ahí se edita directo", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildClosedRow({ status: "BORRADOR" }));
+
+      await expect(
+        service.addAddendum(
+          "consult_1",
+          { content: "Intento sobre un borrador." },
+          { sub: USER_ID, role: "VETERINARIO" },
+          IP,
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(consultationsRepository.createAddendum).not.toHaveBeenCalled();
+    });
+
+    it("404 si la consulta no existe", async () => {
+      consultationsRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.addAddendum("consult_x", { content: "x" }, { sub: USER_ID, role: "VETERINARIO" }, IP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("la respuesta incluye la lista de adendas (autor y fecha), en orden de creación", async () => {
+      consultationsRepository.findById.mockResolvedValueOnce(buildClosedRow()).mockResolvedValueOnce(
+        buildClosedRow({
+          addenda: [
+            {
+              id: "add_1",
+              consultationId: "consult_1",
+              authorId: USER_ID,
+              content: "Primera corrección.",
+              createdAt: new Date("2026-08-10T10:00:00.000Z"),
+              author: { fullName: "Dra. Camila Torres" },
+            },
+          ],
+        }),
+      );
+
+      const result = await service.addAddendum(
+        "consult_1",
+        { content: "Primera corrección." },
+        { sub: USER_ID, role: "VETERINARIO" },
+        IP,
+      );
+
+      expect(result.addenda).toEqual([
+        {
+          id: "add_1",
+          authorId: USER_ID,
+          authorName: "Dra. Camila Torres",
+          content: "Primera corrección.",
+          createdAt: "2026-08-10T10:00:00.000Z",
+        },
+      ]);
+    });
+
+    it("AUXILIAR no es autor de ninguna consulta (nunca crea una) — 403 aunque el controller ya lo bloquearía antes", async () => {
+      consultationsRepository.findById.mockResolvedValue(buildClosedRow({ vetId: OTHER_USER_ID }));
+
+      await expect(
+        service.addAddendum("consult_1", { content: "x" }, { sub: "aux_1", role: "AUXILIAR" }, IP),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

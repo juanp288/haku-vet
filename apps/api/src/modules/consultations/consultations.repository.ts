@@ -5,6 +5,11 @@ import { PRISMA_CLIENT } from "../../common/prisma/prisma.constants";
 const CONSULTATION_DETAIL_INCLUDE = {
   vet: { select: { fullName: true } },
   patient: { select: { id: true, name: true } },
+  /** D4: "puede haber varias adendas" — orden de creación (más antigua primero), como un registro que crece. */
+  addenda: {
+    orderBy: { createdAt: "asc" },
+    include: { author: { select: { fullName: true } } },
+  },
 } satisfies Prisma.ConsultationInclude;
 
 export type ConsultationDetailRow = Prisma.ConsultationGetPayload<{
@@ -203,6 +208,16 @@ export class ConsultationsRepository {
 
       return { outcome: "ok", consultation } as const;
     });
+  }
+
+  /**
+   * D4: "una adenda no se edita ni se borra" — por eso no hay
+   * updateAddendum/deleteAddendum en este repository; el modelo Addendum ni
+   * siquiera tiene `updatedAt` en schema.prisma. Solo create + lectura (ya
+   * incluida en CONSULTATION_DETAIL_INCLUDE).
+   */
+  async createAddendum(consultationId: string, authorId: string, content: string): Promise<void> {
+    await this.prisma.addendum.create({ data: { consultationId, authorId, content } });
   }
 }
 

@@ -1,10 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import {
+  createAddendumSchema,
   createConsultationSchema,
   updateConsultationDraftSchema,
   updateVitalsSchema,
   type ConsultationDetail,
+  type CreateAddendumInput,
   type CreateConsultationInput,
   type UpdateConsultationDraftInput,
   type UpdateVitalsInput,
@@ -71,5 +73,17 @@ export class ConsultationsController {
     @Req() req: Request,
   ): Promise<ConsultationDetail> {
     return this.consultationsService.close(id, user, req.ip ?? "unknown");
+  }
+
+  /** RN-18 "Agregar adenda": solo el autor de la consulta o ADMIN. RN-05: solo sobre una consulta CERRADA. */
+  @Post(":id/addenda")
+  @Roles("ADMIN", "VETERINARIO")
+  addAddendum(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(createAddendumSchema)) body: CreateAddendumInput,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+  ): Promise<ConsultationDetail> {
+    return this.consultationsService.addAddendum(id, body, user, req.ip ?? "unknown");
   }
 }

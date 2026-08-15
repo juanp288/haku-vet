@@ -138,6 +138,25 @@ export type UpdateVitalsInput = z.infer<typeof updateVitalsSchema>;
  * quedan `null` cuando el backend redacta para AUXILIAR (RN-18: "solo
  * signos vitales"), igual patrón que `consultationSummarySchema`.
  */
+/**
+ * D4: "corregir o complementar una consulta cerrada sin alterar el
+ * original" — se muestra bajo la consulta, con autor y fecha, y nunca se
+ * edita ni se borra (ni siquiera Addendum.updatedAt existe en el schema).
+ */
+export const addendumSchema = z.object({
+  id: z.string(),
+  authorId: z.string(),
+  authorName: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+});
+export type Addendum = z.infer<typeof addendumSchema>;
+
+export const createAddendumSchema = z.object({
+  content: z.string().min(1, { message: "El contenido de la adenda es obligatorio." }).max(3000),
+});
+export type CreateAddendumInput = z.infer<typeof createAddendumSchema>;
+
 export const consultationDetailSchema = z.object({
   id: z.string(),
   patientId: z.string(),
@@ -166,6 +185,8 @@ export const consultationDetailSchema = z.object({
   mucousMembranes: z.string().nullable(),
   capillaryRefill: z.number().nullable(),
   nextControlAt: z.string().nullable(),
+  /** D4: vacío para AUXILIAR (redactado, igual que reason/SOAP — RN-18 "solo signos vitales"). */
+  addenda: z.array(addendumSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -197,6 +218,13 @@ export const consultationsContract = c.router({
       404: errorSchema,
     },
   },
+  /**
+   * RN-05/caso límite #10 (doc 04): un PATCH sobre una consulta CERRADA
+   * devuelve 403 — la única corrección posible es una adenda (D4). Los 401/
+   * 403 no se declaran explícitamente en ningún contrato de este repo (son
+   * transversales, sea por el RolesGuard o por una regla de negocio como
+   * esta), así que aquí tampoco.
+   */
   updateDraft: {
     method: "PATCH",
     path: "/consultations/:id",
@@ -206,7 +234,6 @@ export const consultationsContract = c.router({
       200: consultationDetailSchema,
       404: errorSchema,
       409: errorSchema,
-      422: errorSchema,
     },
   },
   /**
@@ -214,7 +241,7 @@ export const consultationsContract = c.router({
    * A diferencia de `updateDraft`, no exige que quien llama sea el autor de
    * la consulta ni ADMIN (RN-07 es sobre visibilidad del contenido clínico,
    * no sobre quién puede registrar una medición) — solo que exista y siga
-   * en BORRADOR.
+   * en BORRADOR. Mismo 403 (no declarado) que updateDraft si ya está CERRADA.
    */
   updateVitals: {
     method: "PATCH",
@@ -225,7 +252,6 @@ export const consultationsContract = c.router({
       200: consultationDetailSchema,
       404: errorSchema,
       409: errorSchema,
-      422: errorSchema,
     },
   },
   /**
@@ -246,6 +272,25 @@ export const consultationsContract = c.router({
       200: consultationDetailSchema,
       404: errorSchema,
       409: errorSchema,
+      422: errorSchema,
+    },
+  },
+  /**
+   * D4 "Agregar adenda". RN-18: solo el autor de la consulta o un ADMIN
+   * (RECEPCION/AUXILIAR ni siquiera tienen el rol para llegar aquí). Solo
+   * sobre una consulta CERRADA — mientras está en BORRADOR se edita
+   * directo (D1/D2), la adenda es la vía de corrección post-cierre (RN-05).
+   * 403 no declarado (ver nota en updateDraft); 422 es "todavía no está
+   * cerrada, agrega la adenda cuando cierres".
+   */
+  addAddendum: {
+    method: "POST",
+    path: "/consultations/:id/addenda",
+    pathParams: z.object({ id: z.string() }),
+    body: createAddendumSchema,
+    responses: {
+      201: consultationDetailSchema,
+      404: errorSchema,
       422: errorSchema,
     },
   },

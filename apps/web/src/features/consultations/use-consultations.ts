@@ -48,3 +48,14 @@ export function useCloseConsultation(id: string) {
     },
   });
 }
+
+/** D4: la respuesta trae la consulta completa con la lista de adendas ya actualizada. */
+export function useAddAddendum(id: string) {
+  const queryClient = useQueryClient();
+  return tsr.consultations.addAddendum.useMutation({
+    onSuccess: (result) => {
+      queryClient.setQueryData(["consultation", id], { status: 200, body: result.body });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
